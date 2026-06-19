@@ -1,0 +1,182 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider   = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Project {
+  id                        String        @id @default("obra_vds_001")
+  nome                      String
+  moeda                     String        @default("BRL")
+  orcamentoMateriaisTotal   Int           // em centavos
+  orcamentoMaoObraTotal     Int           // em centavos
+  orcamentoTotal            Int           // em centavos
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+
+  catalogItems              CatalogItem[]
+  purchases                 Purchase[]
+}
+
+model CatalogItem {
+  id                    String         @id
+  projectId             String         @default("obra_vds_001")
+  project               Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  nome                  String
+  categoria             String
+  quantidadePlanejada   Int
+  unidade               String
+  precoOrcadoUnitario   Int            // em centavos
+  custoOrcadoTotal      Int            // em centavos
+  localCompraPlanejado  String         // "Online" ou "Loja Física"
+  prioridade            String?        // "Alta", "Media", "Baixa" ou null
+  statusCatalogo        String         // "pendente", "comprado", "recebido", "cancelado", "divergente", "avulso"
+  fornecedorPlanejado   String?
+  origemPlanilha        String         // ex: "Lista Geral", "Material online", "Loja Física"
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  purchaseItems         PurchaseItem[]
+}
+
+model Card {
+  id          String    @id @default(uuid())
+  nome        String    // ex: Santander
+  finalCartao String    // ex: 8685
+  limite      Int?      // em centavos
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  payments    Payment[]
+}
+
+model Purchase {
+  id                String             @id
+  projectId         String             @default("obra_vds_001")
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  origem            String             // "manual" ou "ocr_checkout"
+  fornecedor        String
+  statusCompra      String             // "rascunho", "confirmado", "revisar"
+  statusEntrega     String             // "aguardando_entrega", "entregue", "cancelado"
+  compradorNome     String?
+  compradorCpf      String?
+  enderecoEntrega   String?
+  subtotalProdutos  Int                // em centavos
+  frete             Int                // em centavos
+  desconto          Int                // em centavos
+  totalPago         Int                // em centavos
+  dataCompra        DateTime?          @default(now())
+  observacao        String?
+  ocrJobId          String?
+  ocrJob            OcrJob?            @relation(fields: [ocrJobId], references: [id])
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  itens             PurchaseItem[]
+  pagamentos        Payment[]
+  entregas          DeliveryForecast[]
+  anexos            Attachment[]
+  auditorias        AuditLog[]
+}
+
+model PurchaseItem {
+  id                String       @id @default(uuid())
+  purchaseId        String
+  purchase          Purchase     @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  nome              String
+  quantidade        Int
+  valorUnitario     Int?         // em centavos
+  valorTotal        Int?         // em centavos
+  vinculoCatalogoId String?
+  catalogItem       CatalogItem? @relation(fields: [vinculoCatalogoId], references: [id], onDelete: SetNull)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
+model Payment {
+  id               String            @id @default(uuid())
+  purchaseId       String
+  purchase         Purchase          @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  formaPagamento   String            // "pix", "cartao_credito", "cartao_debito", "boleto", "transferencia", "dinheiro"
+  cardId           String?
+  card             Card?             @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  parcelas         Int?
+  valorParcela     Int?              // em centavos
+  juros            Int?              // em centavos
+  comJuros         Boolean?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  installmentPlans InstallmentPlan[]
+}
+
+model InstallmentPlan {
+  id             String    @id @default(uuid())
+  paymentId      String
+  payment        Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  numeroParcela  Int
+  valor          Int       // em centavos
+  dataVencimento DateTime
+  pago           Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model DeliveryForecast {
+  id          String   @id @default(uuid())
+  purchaseId  String
+  purchase    Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  codigoEnvio Int?
+  status      String?  // ex: "FULL"
+  prazo       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Attachment {
+  id           String    @id @default(uuid())
+  purchaseId   String?
+  purchase     Purchase? @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  ocrJobId     String?
+  ocrJob       OcrJob?   @relation(fields: [ocrJobId], references: [id], onDelete: SetNull)
+  nome         String
+  url          String
+  tipoMime     String
+  tamanhoBytes Int
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model OcrJob {
+  id          String       @id @default(uuid())
+  status      String       // "rascunho", "processando", "sucesso", "erro"
+  jsonBruto   String?      // OCR JSON bruto do Gemini
+  imagemUrl   String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  purchases   Purchase[]
+  attachments Attachment[]
+}
+
+model AuditLog {
+  id         String    @id @default(uuid())
+  purchaseId String?
+  purchase   Purchase? @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  usuario    String    // ex: "admin", "visualizador"
+  acao       String    // ex: "CRIAR", "EDITAR", "CONFIRMAR", "OCR_PROCESS"
+  detalhes   String    // JSON ou texto descritivo
+  createdAt  DateTime  @default(now())
+}
+
+model SystemConfig {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
