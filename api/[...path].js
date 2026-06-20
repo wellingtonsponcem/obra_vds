@@ -27,7 +27,12 @@ export default async function handler(req, res) {
     }
 
     const rawPath = req.query.path || [];
-    const path = Array.isArray(rawPath) ? rawPath : [rawPath].filter(Boolean);
+    let path = [];
+    if (Array.isArray(rawPath)) {
+      path = rawPath;
+    } else if (typeof rawPath === 'string') {
+      path = rawPath.split('/').filter(Boolean);
+    }
 
     if (path.length === 0 || path[0] === 'health') {
       return jsonResponse(res, 200, {
