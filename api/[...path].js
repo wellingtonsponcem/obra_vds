@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   PROJECT_ID,
-  calculateJurosEfetivos,
+  calcularJurosEfetivos,
   calculateSummary,
   fetchCatalogItems,
   fetchPurchaseDetails,
