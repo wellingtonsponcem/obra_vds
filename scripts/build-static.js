@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(fileURLToPath(new URL('..', import.meta.url)));
-const dist = join(root, 'dist');
+const dist = join(root, 'public');
 const files = ['index.html'];
 const folders = ['css', 'js'];
 
@@ -26,4 +26,4 @@ for (const folder of folders) {
   }
 }
 
-console.log('Static files copied to dist.');
+console.log('Static files copied to public.');
