@@ -255,11 +255,9 @@ export async function parseJson(req) {
 
 export function sendError(res, error) {
   const status = error.status || 500;
-  const isDev = process.env.NODE_ENV === 'development';
-
   return res.status(status).json({
-    message: status >= 500 ? 'Erro interno no servidor.' : error.message || 'Requisição inválida.',
-    details: isDev ? error.message : undefined,
+    message: error.message || 'Erro interno no servidor.',
+    details: error.stack || error.message,
   });
 }
 

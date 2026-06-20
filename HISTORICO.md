@@ -24,3 +24,12 @@ Por ser um deploy estático sem Next.js, o Vercel não estava direcionando as re
 2. **Tratamento de Path no Handler (`api/[...path].js`)**:
    - Ajustada a decodificação da variável `path`. No Vercel com rewrite, `req.query.path` é recebido como string (ex.: `"config/cards"`).
    - Agora o handler detecta se é string e divide por barra (`/`), suportando tanto o rewrite de produção quanto o array local do `vercel dev`.
+
+## 20/06/2026 - Diagnóstico do Erro 500 na Vercel (API Catalog)
+
+### Problema
+Ao acessar `/api/catalog`, o servidor retornava um "Erro 500 ao chamar /api/catalog" genérico sem detalhar a exceção raiz, dificultando saber se a causa é ausência de variáveis de ambiente (`DATABASE_URL`/`POSTGRES_URL`), falha de SSL ou tabelas ausentes.
+
+### Solução
+1. **Mensagens Detalhadas de Erro (`api/db.js`)**:
+   - Atualizada a função `sendError` para expor a mensagem (`error.message`) e a stack trace (`error.stack`) no JSON de resposta. Isso permite visualizar a causa real do erro diretamente pelo toast no frontend ou pelo inspetor de rede do navegador.
