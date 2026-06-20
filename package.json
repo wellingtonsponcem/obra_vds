@@ -1,0 +1,14 @@
+{
+  "name": "obra-vds-vercel-static",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx vercel dev",
+    "build": "node scripts/build-static.js",
+    "db:init": "node scripts/init-db.js"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  }
+}
