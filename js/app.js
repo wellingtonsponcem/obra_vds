@@ -91,6 +91,9 @@ function render() {
   const activeButton = document.querySelector(`[data-view="${state.view}"]`);
   if (activeButton) activeButton.classList.add('active');
 
+  const activeView = els[`${state.view}View`];
+  if (activeView) activeView.classList.add('active');
+
   if (state.view === 'dashboard') renderDashboard();
   if (state.view === 'catalogo') renderCatalogo();
   if (state.view === 'compras') renderCompras();
