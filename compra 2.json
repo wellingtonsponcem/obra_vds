@@ -1,0 +1,90 @@
+{
+  "detalhes_da_compra": {
+    "data_compra": "22 de junho",
+    "numero_pedido": "2000013652145111",
+    "resumo_financeiro": {
+      "quantidade_produtos": 6,
+      "valor_produtos": 220.25,
+      "desconto": -36.53,
+      "cupons": -10.00,
+      "frete": 25.99,
+      "impostos": 9.89,
+      "subtotal": 209.60,
+      "valor_total": 233.02
+    },
+    "condicoes_de_pagamento": [
+      {
+        "metodo": "Cartão de Crédito",
+        "bandeira": "Visa",
+        "final_cartao": "8685",
+        "parcelas": 3,
+        "valor_parcela": 69.72,
+        "valor_total_condicao": 209.16,
+        "data_aprovacao": "22 de junho",
+        "codigo_transacao": "164545075435",
+        "status": "Pagamento aprovado"
+      },
+      {
+        "metodo": "Cartão de Crédito",
+        "bandeira": "Visa",
+        "final_cartao": "8685",
+        "parcelas": 1,
+        "valor_parcela": 23.87,
+        "valor_total_condicao": 23.87,
+        "data_aprovacao": "22 de junho",
+        "codigo_transacao": "164545218547",
+        "status": "Pagamento aprovado"
+      }
+    ],
+    "itens": [
+      {
+        "pacote": 1,
+        "modalidade_envio": "FULL",
+        "descricao_item": "Cilindro Compatível Brother Dcp-80...",
+        "quantidade": 1,
+        "preco_original": 25.00,
+        "preco_pago": 23.87
+      },
+      {
+        "pacote": 2,
+        "modalidade_envio": "FULL",
+        "descricao_item": "Corretor Postural Alinhador Coluna ...",
+        "quantidade": 1,
+        "preco_original": 42.92,
+        "preco_pago": 20.73
+      },
+      {
+        "pacote": 2,
+        "modalidade_envio": "FULL",
+        "descricao_item": "Jogo 10 Peças Bits Philips Ph2 E Fe...",
+        "quantidade": 1,
+        "preco_original": 28.99,
+        "preco_pago": 27.37
+      },
+      {
+        "pacote": 3,
+        "modalidade_envio": "FULL",
+        "descricao_item": "Trena Profissional Fita Métrica Fluor...",
+        "quantidade": 1,
+        "preco_original": 27.90,
+        "preco_pago": 25.02
+      },
+      {
+        "pacote": 4,
+        "modalidade_envio": "FULL",
+        "descricao_item": "Martelo Profissional Unha 450g Ca...",
+        "quantidade": 1,
+        "preco_original": 69.90,
+        "preco_pago": 55.70
+      },
+      {
+        "pacote": 5,
+        "modalidade_envio": "Padrão",
+        "descricao_item": "Chave De Fenda Especial Para Eletr...",
+        "quantidade": 1,
+        "preco_original": 25.54,
+        "preco_pago": 21.03
+      }
+    ]
+  }
+}

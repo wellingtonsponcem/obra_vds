@@ -1,0 +1,94 @@
+{
+  "detalhes_da_compra": {
+    "data_compra": "19 de junho",
+    "numero_pedido": "2000013597977349",
+    "resumo_financeiro": {
+      "quantidade_produtos": 6,
+      "valor_produtos": 4102.11,
+      "desconto_a_vista": -923.76,
+      "frete": 20.99,
+      "subtotal": 3199.34,
+      "valor_total": 3550.91
+    },
+    "condicoes_de_pagamento": [
+      {
+        "metodo": "Cartão de Crédito",
+        "bandeira": "Visa",
+        "final_cartao": "8685",
+        "parcelas": 4,
+        "valor_parcela": 27.49,
+        "valor_total_condicao": 109.96,
+        "data_aprovacao": "19 de junho",
+        "codigo_transacao": "163984550573",
+        "status": "Pagamento aprovado"
+      },
+      {
+        "metodo": "Cartão de Crédito",
+        "bandeira": "Visa",
+        "final_cartao": "8685",
+        "parcelas": 5,
+        "valor_parcela": 688.19,
+        "valor_total_condicao": 3440.95,
+        "data_aprovacao": "19 de junho",
+        "codigo_transacao": "164801631410",
+        "status": "Pagamento aprovado"
+      }
+    ],
+    "itens": [
+      {
+        "pacote": 1,
+        "modalidade_envio": "FULL",
+        "descricao_item": "Módulo Indicador De Carga Para 5s ...",
+        "detalhes": null,
+        "quantidade": 1,
+        "preco_original": 16.80,
+        "preco_pago": 16.80
+      },
+      {
+        "pacote": 1,
+        "modalidade_envio": "FULL",
+        "descricao_item": "Máscara De Solda Automática 4k A...",
+        "detalhes": "Cor: Preto Nome do desenho: Liso",
+        "quantidade": 1,
+        "preco_original": 178.00,
+        "preco_pago": 148.00
+      },
+      {
+        "pacote": 2,
+        "modalidade_envio": "Padrão",
+        "descricao_item": "Placa De Proteção Bms 5s 18v A 21...",
+        "detalhes": null,
+        "quantidade": 1,
+        "preco_original": 22.99,
+        "preco_pago": 19.53
+      },
+      {
+        "pacote": 3,
+        "modalidade_envio": "Padrão",
+        "descricao_item": "Estabilizador Scorp-c-2 Feiyutech S...",
+        "detalhes": "Cor: Preto",
+        "quantidade": 1,
+        "preco_original": 1999.99,
+        "preco_pago": 1474.39
+      },
+      {
+        "pacote": 4,
+        "modalidade_envio": "Padrão",
+        "descricao_item": "Cabo Flat 3 Em 1 Para Dji Mini 2/min...",
+        "detalhes": null,
+        "quantidade": 1,
+        "preco_original": 84.34,
+        "preco_pago": 73.63
+      },
+      {
+        "pacote": 5,
+        "modalidade_envio": "Padrão",
+        "descricao_item": "Kit Ferramentas Elétricas 5 Em 1 Shi...",
+        "detalhes": null,
+        "quantidade": 1,
+        "preco_original": 1799.99,
+        "preco_pago": 1446.00
+      }
+    ]
+  }
+}

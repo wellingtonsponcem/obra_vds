@@ -1,0 +1,103 @@
+{
+  "detalhes_da_compra": {
+    "data_compra": "24 de junho",
+    "numero_pedido": "2000013676528193",
+    "resumo_financeiro": {
+      "quantidade_produtos": 7,
+      "valor_produtos": 975.48,
+      "desconto_a_vista": -206.44,
+      "frete": 0.00,
+      "subtotal": 769.04,
+      "valor_total": 851.98
+    },
+    "condicoes_de_pagamento": [
+      {
+        "metodo": "Cartão de Crédito",
+        "bandeira": "Visa",
+        "final_cartao": "8685",
+        "parcelas": 4,
+        "valor_parcela": 177.35,
+        "valor_total_condicao": 709.40,
+        "data_aprovacao": "24 de junho",
+        "codigo_transacao": "164749709327",
+        "status": "Pagamento aprovado"
+      },
+      {
+        "metodo": "Cartão de Crédito",
+        "bandeira": "Visa",
+        "final_cartao": "8685",
+        "parcelas": 4,
+        "valor_parcela": 35.65,
+        "valor_total_condicao": 142.60,
+        "data_aprovacao": "24 de junho",
+        "codigo_transacao": "165574058262",
+        "status": "Pagamento aprovado"
+      }
+    ],
+    "itens": [
+      {
+        "pacote": 1,
+        "modalidade_envio": "Padrão",
+        "descricao_item": "Cinto Multiuso P/ Câmeras Fotográ...",
+        "detalhes": "Cor: Preto Nome do desenho: Preto",
+        "quantidade": 1,
+        "preco_original": 124.96,
+        "preco_pago": 114.55
+      },
+      {
+        "pacote": 2,
+        "modalidade_envio": "FULL",
+        "descricao_item": "Máquina De Solda Inversora Mig Se...",
+        "detalhes": "Cor: Verde",
+        "quantidade": 1,
+        "preco_original": 369.99,
+        "preco_pago": 369.99
+      },
+      {
+        "pacote": 3,
+        "modalidade_envio": "FULL",
+        "descricao_item": "Fogão Cooktop Indução 1 Boca Pain...",
+        "detalhes": "Cor: Preto Voltagem: 127V",
+        "quantidade": 1,
+        "preco_original": 299.90,
+        "preco_pago": 119.90
+      },
+      {
+        "pacote": 4,
+        "modalidade_envio": "Padrão",
+        "descricao_item": "Esquadro Combinado 12 Pol 300m...",
+        "detalhes": null,
+        "quantidade": 1,
+        "preco_original": 42.90,
+        "preco_pago": 42.90
+      },
+      {
+        "pacote": 5,
+        "modalidade_envio": "Padrão",
+        "descricao_item": "Kit 300 Parafusos Chipboard Philips...",
+        "detalhes": null,
+        "quantidade": 1,
+        "preco_original": 28.03,
+        "preco_pago": 28.03
+      },
+      {
+        "pacote": 6,
+        "modalidade_envio": "FULL",
+        "descricao_item": "Capacete Infantil Juvenil Regulador ...",
+        "detalhes": "Cor: Azul Tamanho: 50-56cm",
+        "quantidade": 1,
+        "preco_original": 78.80,
+        "preco_pago": 65.86
+      },
+      {
+        "pacote": 7,
+        "modalidade_envio": "FULL",
+        "descricao_item": "Case Capa Porta Lente Neoprene À...",
+        "detalhes": "Cor: Preto TAMANHO:: M - 9x14 cm",
+        "quantidade": 1,
+        "preco_original": 30.90,
+        "preco_pago": 27.81
+      }
+    ]
+  }
+}

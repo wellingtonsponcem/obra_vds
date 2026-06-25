@@ -14,7 +14,7 @@ await client.connect();
 try {
   await client.query(schemaSql);
   await client.query(`
-    INSERT INTO project (id, nome, moeda, orcamentoMateriaisTotal, orcamentoMaoObraTotal, orcamentoTotal)
+    INSERT INTO project (id, nome, moeda, orcamento_materiais_total, orcamento_mao_obra_total, orcamento_total)
     VALUES ('obra_vds_001', 'Obra VDS', 'BRL', 0, 0, 0)
     ON CONFLICT (id) DO NOTHING;
   `);
