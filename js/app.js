@@ -20,7 +20,6 @@ function init() {
     toast: document.getElementById('toast'),
     syncButton: document.getElementById('syncButton'),
     exportJsonButton: document.getElementById('exportJsonButton'),
-    perfilSelect: document.getElementById('perfilSelect'),
     dashboardView: document.getElementById('dashboardView'),
     catalogoView: document.getElementById('catalogoView'),
     comprasView: document.getElementById('comprasView'),
@@ -34,14 +33,19 @@ function init() {
     });
   });
 
-  els.perfilSelect.addEventListener('change', (event) => {
-    state.perfil = event.target.value;
-    showToast(`Perfil alterado para ${state.perfil === 'admin' ? 'Administrador' : 'Financiador'}.`, 'info');
-  });
-
   els.syncButton.addEventListener('click', () => loadAll());
-
   els.exportJsonButton.addEventListener('click', exportJson);
+
+  // Usar delegação de eventos para controle de perfil (suporta selects dinâmicos no mobile)
+  document.addEventListener('change', (event) => {
+    const select = event.target.closest('.perfil-select-control');
+    if (select) {
+      state.perfil = select.value;
+      document.querySelectorAll('.perfil-select-control').forEach(s => s.value = state.perfil);
+      showToast(`Perfil alterado para ${state.perfil === 'admin' ? 'Administrador' : 'Financiador'}.`, 'info');
+      render();
+    }
+  });
 
   document.addEventListener('click', handleClick);
   document.addEventListener('submit', handleSubmit);
@@ -87,10 +91,12 @@ function render() {
   els.pageTitle.textContent = titles[state.view] || 'Obra VDS';
 
   document.querySelectorAll('.view').forEach((view) => view.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach((button) => button.classList.remove('active'));
-
-  const activeButton = document.querySelector(`[data-view="${state.view}"]`);
-  if (activeButton) activeButton.classList.add('active');
+  
+  // Desativar todas as abas/botões de navegação
+  document.querySelectorAll('[data-view]').forEach((button) => button.classList.remove('active'));
+  
+  // Ativar todos os botões correspondentes à view atual (tanto desktop quanto mobile bottom nav)
+  document.querySelectorAll(`[data-view="${state.view}"]`).forEach((button) => button.classList.add('active'));
 
   const activeView = els[`${state.view}View`];
   if (activeView) activeView.classList.add('active');
@@ -99,6 +105,11 @@ function render() {
   if (state.view === 'catalogo') renderCatalogo();
   if (state.view === 'compras') renderCompras();
   if (state.view === 'configuracoes') renderConfiguracoes();
+
+  // Sincronizar valor atual de todos os controles de perfil renderizados
+  document.querySelectorAll('.perfil-select-control').forEach((select) => {
+    select.value = state.perfil;
+  });
 }
 
 function renderDashboard() {
@@ -240,12 +251,29 @@ function renderConfiguracoes() {
   els.configuracoesView.innerHTML = `
     <div class="grid" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
       <div class="table-card">
+        <h3>Ações e Modo</h3>
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div>
+            <strong style="display: block; margin-bottom: 8px; font-size: 12px; color: var(--muted); text-transform: uppercase;">Modo de Acesso</strong>
+            <select class="input perfil-select-control" style="width: 100%;">
+              <option value="admin" ${state.perfil === 'admin' ? 'selected' : ''}>Admin</option>
+              <option value="visualizador" ${state.perfil === 'visualizador' ? 'selected' : ''}>Financiador</option>
+            </select>
+          </div>
+          <div>
+            <strong style="display: block; margin-bottom: 8px; font-size: 12px; color: var(--muted); text-transform: uppercase;">Exportar Dados</strong>
+            <button class="button secondary" style="width: 100%; justify-content: center; display: flex; align-items: center;" data-action="export-json-mobile">Exportar JSON</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-card">
         <h3>Cartões</h3>
         ${state.cards.length ? renderCardTable() : empty('Nenhum cartão cadastrado.')}
         ${isAdmin ? renderCardForm() : ''}
       </div>
 
-      <div class="table-card">
+      <div class="table-card" style="grid-column: span 2;">
         <h3>Chaves de configuração</h3>
         <form class="form" data-action="update-key">
           <input class="input" name="key" placeholder="Chave, ex: gemini_api_key" required>
@@ -304,6 +332,44 @@ function renderCatalogTable() {
 
 function renderPurchaseTable(purchases, withActions) {
   const isAdmin = state.perfil === 'admin';
+
+  if (isMobile()) {
+    return `
+      <div class="mobile-cards-list">
+        ${purchases.map((purchase) => {
+          const payment = purchase.pagamentos[0] || {};
+          const itemsSummary = purchase.itens.length > 0
+            ? (purchase.itens.length === 1 
+                ? escapeHtml(purchase.itens[0].nome)
+                : `${escapeHtml(purchase.itens[0].nome)} e mais ${purchase.itens.length - 1} itens`)
+            : 'Item avulso';
+
+          return `
+            <div class="mobile-purchase-card">
+              <div class="mobile-card-row">
+                <span class="mobile-card-supplier">${escapeHtml(purchase.fornecedor)}</span>
+                <span class="mobile-card-date">${purchase.dataCompra || '-'}</span>
+              </div>
+              <div class="mobile-card-items">${itemsSummary}</div>
+              <div class="mobile-card-row mobile-card-footer">
+                <span class="mobile-card-total">${formatMoney(purchase.totalPago)}</span>
+                <span class="mobile-card-meta">
+                  ${escapeHtml(payment.formaPagamento || '-')}${payment.parcelas ? ` (${payment.parcelas}x)` : ''}
+                </span>
+                <div>${badge(purchase.statusCompra)}</div>
+              </div>
+              ${withActions && isAdmin ? `
+                <div class="mobile-card-row" style="margin-top: 8px; justify-content: flex-end; gap: 8px;">
+                  ${purchase.statusCompra === 'revisar' ? `<button class="icon-button primary" data-action="confirm-purchase" data-id="${escapeHtml(purchase.id)}">Confirmar</button>` : ''}
+                  <button class="icon-button danger" data-action="delete-purchase" data-id="${escapeHtml(purchase.id)}">Excluir</button>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
 
   return `
     <div class="table-wrap">
@@ -372,6 +438,40 @@ function renderPurchaseItemTable(purchases, withActions) {
 
   if (!flattenedItems.length) return empty('Nenhum item cadastrado.');
 
+  if (isMobile()) {
+    return `
+      <div class="mobile-cards-list">
+        ${flattenedItems.map((item) => {
+          const category = getCategoryForPurchaseItem(item);
+          return `
+            <div class="mobile-purchase-card">
+              <div class="mobile-card-row">
+                <span class="mobile-card-supplier" style="font-size: 14px;">${escapeHtml(item.nome)}</span>
+                <span class="mobile-card-date">${item.dataCompra || '-'}</span>
+              </div>
+              <div class="mobile-card-row" style="font-size: 12px; color: var(--muted); margin-top: -4px;">
+                <span>Fornecedor: <strong>${escapeHtml(item.fornecedor)}</strong></span>
+                <span>Qtd: ${item.quantidade} un</span>
+              </div>
+              <div class="mobile-card-row mobile-card-footer">
+                <span class="mobile-card-total">${formatMoney(item.valorTotal)}</span>
+                <span class="mobile-card-meta">
+                  Cat: <span class="badge" style="border-color: var(--border); color: var(--muted); margin-left: 2px; padding: 2px 6px;">${escapeHtml(category)}</span>
+                </span>
+                <div>${badge(item.statusCompra)}</div>
+              </div>
+              ${withActions && isAdmin ? `
+                <div class="mobile-card-row" style="margin-top: 8px; justify-content: flex-end;">
+                  <button class="icon-button danger" data-action="delete-purchase" data-id="${escapeHtml(item.purchaseId)}">Excluir Compra</button>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
   return `
     <div class="table-wrap">
       <table>
@@ -418,6 +518,7 @@ function renderPurchaseItemTable(purchases, withActions) {
     </div>
   `;
 }
+
 
 function getCategoryForPurchaseItem(item) {
   if (item.catalogItem?.categoria) {
@@ -676,6 +777,11 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === 'export-json-mobile') {
+    exportJson();
+    return;
+  }
+
   if (action === 'add-item-row') {
     const container = document.getElementById('purchaseItems');
     const index = container.querySelectorAll('[data-purchase-item]').length;
@@ -912,6 +1018,19 @@ function badge(status) {
   const tone = normalized.includes('diverg') || normalized.includes('cancel') ? 'danger' : normalized.includes('confirm') || normalized.includes('receb') || normalized.includes('compr') ? 'ok' : 'warn';
   return `<span class="badge ${tone}">${escapeHtml(normalized)}</span>`;
 }
+
+function isMobile() {
+  return window.innerWidth <= 768;
+}
+
+let lastIsMobileState = isMobile();
+window.addEventListener('resize', () => {
+  const currentIsMobileState = isMobile();
+  if (currentIsMobileState !== lastIsMobileState) {
+    lastIsMobileState = currentIsMobileState;
+    render();
+  }
+});
 
 function empty(message) {
   return `<div class="empty">${escapeHtml(message)}</div>`;
