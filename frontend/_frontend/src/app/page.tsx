@@ -172,6 +172,11 @@ export default function Home() {
   const [modoVisualizacaoCompra, setModoVisualizacaoCompra] = useState<Purchase | null>(null);
   const [notificacao, setNotificacao] = useState<{ texto: string; tipo: 'sucesso' | 'erro' | 'info' } | null>(null);
 
+  // Estados do Catálogo Inteligente
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'todos' | 'pendente' | 'comprado'>('todos');
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
   // Estado do formulário manual
   const [novaCompraForm, setNovaCompraForm] = useState({
     id: '',
@@ -581,6 +586,33 @@ export default function Home() {
     downloadAnchor.remove();
     exibirNotificacao('CSV exportado com sucesso!', 'sucesso');
   };
+
+  const toggleCategory = (cat: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  };
+
+  const catalogFiltered = catalog.filter(item => {
+    if (filterStatus !== 'todos' && item.statusCatalogo !== filterStatus) return false;
+    if (searchTerm && !item.nome.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    return true;
+  });
+
+  const catalogGroups: Record<string, CatalogItem[]> = {};
+  catalogFiltered.forEach(item => {
+    if (!catalogGroups[item.categoria]) catalogGroups[item.categoria] = [];
+    catalogGroups[item.categoria].push(item);
+  });
+
+  const catalogGroupEntries = Object.entries(catalogGroups).sort(([a], [b]) => a.localeCompare(b));
+
+  const activeCategories = searchTerm
+    ? new Set(catalogGroupEntries.map(([cat]) => cat))
+    : expandedCategories;
 
   return (
     <div className="flex-1 flex flex-col md:flex-row bg-slate-900 text-slate-100 min-h-screen font-sans" onPaste={handlePaste}>
@@ -1109,97 +1141,129 @@ export default function Home() {
             </div>
           )}
 
-          {/* TAB 2: CATÁLOGO DE MATERIAIS */}
+          {/* TAB 2: CATÁLOGO INTELIGENTE DE MATERIAIS */}
           {abaAtiva === 'catalogo' && (
-            <div className="bg-slate-950 rounded-xl border border-slate-800 shadow-lg p-6 space-y-6">
+            <div className="bg-slate-950 rounded-xl border border-slate-800 shadow-lg">
               
-              {/* Filtros do Catálogo */}
-              <div className="flex flex-col md:flex-row gap-3">
-                <input
-                  type="text"
-                  placeholder="Buscar material por nome..."
-                  className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-slate-700"
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    // Filtro de busca local rápida
-                    setCatalog(prev => {
-                      fetchData(); // recarrega com a busca da API
-                      return prev;
-                    });
-                  }}
-                />
-                
-                <select className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none">
-                  <option value="">Todas Categorias</option>
-                  <option value="Acabamento">Acabamento</option>
-                  <option value="Diversos">Diversos</option>
-                  <option value="Ferramentas">Ferramentas</option>
-                </select>
-
-                <select className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none">
-                  <option value="">Todos Status</option>
-                  <option value="pendente">Pendente</option>
-                  <option value="comprado">Comprado</option>
-                  <option value="recebido">Recebido</option>
-                </select>
+              {/* Sticky Search & Filter Bar */}
+              <div className="sticky top-0 z-10 bg-slate-950 border-b border-slate-800 rounded-t-xl">
+                <div className="p-4 space-y-3">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Buscar material..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-9 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-slate-600"
+                    />
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto">
+                    {(['todos', 'pendente', 'comprado'] as const).map(status => (
+                      <button
+                        key={status}
+                        onClick={() => setFilterStatus(status)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
+                          filterStatus === status
+                            ? status === 'todos'
+                              ? 'bg-slate-700 text-white border-slate-600'
+                              : status === 'pendente'
+                                ? 'bg-amber-900/40 text-amber-300 border-amber-700'
+                                : 'bg-emerald-900/40 text-emerald-300 border-emerald-700'
+                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-600'
+                        }`}
+                      >
+                        {status === 'todos' ? 'Todos' : status === 'pendente' ? 'Pendentes' : 'Comprados'}
+                      </button>
+                    ))}
+                    {searchTerm && (
+                      <button
+                        onClick={() => { setSearchTerm(''); setFilterStatus('todos'); }}
+                        className="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap bg-rose-900/30 text-rose-400 border border-rose-800 hover:bg-rose-900/50"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Tabela do Catálogo */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-slate-500 font-semibold">
-                      <th className="pb-3 font-semibold">ID</th>
-                      <th className="pb-3 font-semibold">Nome Material</th>
-                      <th className="pb-3 font-semibold">Categoria</th>
-                      <th className="pb-3 font-semibold">Orçado Unitário</th>
-                      <th className="pb-3 font-semibold">Orçado Total</th>
-                      <th className="pb-3 font-semibold">Pago Acumulado</th>
-                      <th className="pb-3 font-semibold">Saldo Pendente</th>
-                      <th className="pb-3 font-semibold">Status Catálogo</th>
-                      {perfil === 'admin' && <th className="pb-3 font-semibold text-right">Ações</th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 text-slate-300">
-                    {catalog.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-900/40 transition-all">
-                        <td className="py-3.5 font-mono text-cyan-400">{item.id}</td>
-                        <td className="py-3.5 font-bold text-white max-w-xs truncate">{item.nome}</td>
-                        <td className="py-3.5">{item.categoria}</td>
-                        <td className="py-3.5">{formatarMoeda(item.precoOrcadoUnitario)}</td>
-                        <td className="py-3.5 font-bold text-white">{formatarMoeda(item.custoOrcadoTotal)}</td>
-                        <td className="py-3.5 font-bold text-emerald-400">{formatarMoeda(item.precoPagoAcumulado)}</td>
-                        <td className="py-3.5 font-bold text-amber-500">{formatarMoeda(item.saldoPendente)}</td>
-                        <td className="py-3.5">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                            item.statusCatalogo === 'recebido' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                            item.statusCatalogo === 'comprado' ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' :
-                            item.statusCatalogo === 'divergente' ? 'bg-rose-950 text-rose-400 border border-rose-800' :
-                            'bg-slate-800 text-slate-400 border border-slate-700'
-                          }`}>
-                            {item.statusCatalogo}
+              {/* Category Accordions */}
+              <div className="p-4 space-y-3">
+                {catalogGroupEntries.length === 0 ? (
+                  <div className="text-center py-16 text-slate-500 space-y-2">
+                    <svg className="w-10 h-10 mx-auto text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <p className="text-sm font-semibold">Nenhum material encontrado</p>
+                    <p className="text-xs">Tente ajustar os filtros ou o termo de busca</p>
+                  </div>
+                ) : (
+                  catalogGroupEntries.map(([categoria, itens]) => {
+                    const isExpanded = activeCategories.has(categoria);
+                    return (
+                      <div key={categoria}>
+                        <button
+                          onClick={() => toggleCategory(categoria)}
+                          className="w-full flex items-center justify-between px-4 py-3 bg-slate-900 rounded-lg border border-slate-800 hover:border-slate-700 transition-all"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <svg
+                              className={`w-3 h-3 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                              fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                            <span className="text-sm font-bold text-white">{categoria}</span>
+                          </div>
+                          <span className="text-[11px] font-semibold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                            {itens.length} {itens.length === 1 ? 'item' : 'itens'}
                           </span>
-                        </td>
-                        {perfil === 'admin' && (
-                          <td className="py-3.5 text-right space-x-1">
-                            <button
-                              onClick={() => handleAtualizarStatusCatalogo(item.id, 'recebido')}
-                              className="bg-emerald-900/50 hover:bg-emerald-800 text-emerald-300 px-2 py-1 rounded text-[10px] border border-emerald-800"
-                            >
-                              Recebido
-                            </button>
-                            <button
-                              onClick={() => handleAtualizarStatusCatalogo(item.id, 'divergente')}
-                              className="bg-rose-900/50 hover:bg-rose-800 text-rose-300 px-2 py-1 rounded text-[10px] border border-rose-800"
-                            >
-                              Divergente
-                            </button>
-                          </td>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="mt-2 space-y-2 pl-3 border-l-2 border-slate-800 ml-[7px]">
+                            {itens.map(item => (
+                              <div
+                                key={item.id}
+                                className="bg-slate-900/60 rounded-lg border border-slate-800/50 p-4 flex items-center justify-between hover:border-slate-700 transition-all"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-bold text-white truncate max-w-[220px] sm:max-w-xs">{item.nome}</p>
+                                  <p className="text-xs text-slate-400 mt-0.5">
+                                    {item.quantidadePlanejada} {item.unidade}
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0 ml-3 flex flex-col items-end gap-1.5">
+                                  <p className="text-sm font-bold text-white">{formatarMoeda(item.precoOrcadoUnitario)}</p>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    item.statusCatalogo === 'comprado'
+                                      ? 'bg-emerald-900/30 text-emerald-400'
+                                      : item.statusCatalogo === 'recebido'
+                                        ? 'bg-emerald-900/30 text-emerald-400'
+                                        : item.statusCatalogo === 'cancelado'
+                                          ? 'bg-slate-800 text-slate-400'
+                                          : item.statusCatalogo === 'divergente'
+                                            ? 'bg-rose-900/30 text-rose-400'
+                                            : 'bg-amber-900/30 text-amber-400'
+                                  }`}>
+                                    {item.statusCatalogo === 'comprado' ? 'Comprado' :
+                                     item.statusCatalogo === 'recebido' ? 'Recebido' :
+                                     item.statusCatalogo === 'cancelado' ? 'Cancelado' :
+                                     item.statusCatalogo === 'divergente' ? 'Divergente' :
+                                     'Pendente'}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                      </div>
+                    );
+                  })
+                )}
               </div>
 
             </div>
