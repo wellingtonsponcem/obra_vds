@@ -7,6 +7,7 @@ const state = {
   cards: [],
   suggestions: { fornecedores: [], cartoes: [] },
   loading: false,
+  purchaseViewMode: 'compra', // 'compra' ou 'item'
 };
 
 const els = {};
@@ -104,6 +105,37 @@ function renderDashboard() {
   const latestPurchases = state.purchases.slice(0, 6);
   const alerts = state.summary.alertasDivergencia || [];
 
+  const { categories, totalCompradoItens } = getPurchaseSummaryByCategory();
+  const svgChart = drawDonutChart(categories, totalCompradoItens);
+
+  const colors = [
+    'var(--cyan)',
+    'var(--emerald)',
+    'var(--amber)',
+    'var(--rose)',
+    'var(--blue)',
+    '#a855f7',
+    '#ec4899',
+    '#f43f5e',
+    '#10b981',
+  ];
+
+  const legendHtml = categories.map((cat, index) => {
+    const color = colors[index % colors.length];
+    return `
+      <div class="legend-item">
+        <span class="legend-label">
+          <span class="legend-color" style="background-color: ${color};"></span>
+          ${escapeHtml(cat.name)}
+        </span>
+        <span class="legend-values">
+          ${formatMoney(cat.total)}
+          <span class="legend-pct">${cat.percentage}%</span>
+        </span>
+      </div>
+    `;
+  }).join('') || '<div class="empty">Nenhum gasto categorizado</div>';
+
   els.dashboardView.innerHTML = `
     <div class="grid metrics">
       ${metricCard('Custo Orçado Total', formatMoney(state.summary.totalOrcado), `${state.summary.progressoPercentual}% comprado`, 'cyan')}
@@ -114,21 +146,50 @@ function renderDashboard() {
 
     <div class="layout">
       <div class="table-card">
-        <h3>Últimas compras</h3>
-        ${latestPurchases.length ? renderPurchaseTable(latestPurchases, false) : empty('Nenhuma compra cadastrada.')}
+        <div class="table-header">
+          <h3 style="margin: 0;">Últimas compras</h3>
+          <div class="view-toggle">
+            <button class="toggle-btn ${state.purchaseViewMode === 'compra' ? 'active' : ''}" data-action="toggle-view-mode" data-mode="compra">Por Compra</button>
+            <button class="toggle-btn ${state.purchaseViewMode === 'item' ? 'active' : ''}" data-action="toggle-view-mode" data-mode="item">Por Item</button>
+          </div>
+        </div>
+        ${state.purchaseViewMode === 'compra'
+          ? (latestPurchases.length ? renderPurchaseTable(latestPurchases, false) : empty('Nenhuma compra cadastrada.'))
+          : (latestPurchases.length ? renderPurchaseItemTable(latestPurchases, false) : empty('Nenhum item cadastrado.'))
+        }
       </div>
 
-      <div class="card">
-        <h3>Progresso da obra</h3>
-        <div class="muted">Comprado sobre o orçamento total</div>
-        <div class="progress-track" style="margin-top: 14px;">
-          <div class="progress-bar" style="width: ${Math.min(100, state.summary.progressoPercentual)}%;"></div>
+      <div class="dashboard-sidebar" style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="card">
+          <h3>Progresso da obra</h3>
+          <div class="muted">Comprado sobre o orçamento total</div>
+          <div class="progress-track" style="margin-top: 14px;">
+            <div class="progress-bar" style="width: ${Math.min(100, state.summary.progressoPercentual)}%;"></div>
+          </div>
+          <p style="font-size: 34px; font-weight: 900; margin: 16px 0 4px;">${state.summary.progressoPercentual}%</p>
+          <p class="muted">Pendente: ${formatMoney(state.summary.totalPendente)}</p>
         </div>
-        <p style="font-size: 34px; font-weight: 900; margin: 16px 0 4px;">${state.summary.progressoPercentual}%</p>
-        <p class="muted">Pendente: ${formatMoney(state.summary.totalPendente)}</p>
 
-        <h3 style="margin-top: 24px;">Alertas de divergência</h3>
-        ${alerts.length ? `<div class="alerts">${alerts.map((alert) => `<div class="alert"><strong>${escapeHtml(alert.nome)}</strong><br>${formatMoney(alert.diferenca)} acima do orçado</div>`).join('')}</div>` : empty('Sem divergências detectadas.')}
+        <div class="card">
+          <h3>Gastos por categoria</h3>
+          <div class="category-chart-container">
+            <div class="chart-wrapper">
+              ${svgChart}
+              <div class="chart-center-text">
+                <span>Materiais</span>
+                <strong>${formatMoney(totalCompradoItens)}</strong>
+              </div>
+            </div>
+            <div class="chart-legend">
+              ${legendHtml}
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Alertas de divergência</h3>
+          ${alerts.length ? `<div class="alerts">${alerts.map((alert) => `<div class="alert"><strong>${escapeHtml(alert.nome)}</strong><br>${formatMoney(alert.diferenca)} acima do orçado</div>`).join('')}</div>` : empty('Sem divergências detectadas.')}
+        </div>
       </div>
     </div>
   `;
@@ -155,8 +216,17 @@ function renderCompras() {
   els.comprasView.innerHTML = `
     <div class="layout">
       <div class="table-card">
-        <h3>Histórico de compras</h3>
-        ${state.purchases.length ? renderPurchaseTable(state.purchases, true) : empty('Nenhuma compra cadastrada.')}
+        <div class="table-header">
+          <h3 style="margin: 0;">Histórico de compras</h3>
+          <div class="view-toggle">
+            <button class="toggle-btn ${state.purchaseViewMode === 'compra' ? 'active' : ''}" data-action="toggle-view-mode" data-mode="compra">Por Compra</button>
+            <button class="toggle-btn ${state.purchaseViewMode === 'item' ? 'active' : ''}" data-action="toggle-view-mode" data-mode="item">Por Item</button>
+          </div>
+        </div>
+        ${state.purchaseViewMode === 'compra'
+          ? (state.purchases.length ? renderPurchaseTable(state.purchases, true) : empty('Nenhuma compra cadastrada.'))
+          : (state.purchases.length ? renderPurchaseItemTable(state.purchases, true) : empty('Nenhum item cadastrado.'))
+        }
       </div>
 
       ${isAdmin ? renderPurchaseForm() : ''}
@@ -277,6 +347,176 @@ function renderPurchaseTable(purchases, withActions) {
       </table>
     </div>
   `;
+}
+
+function renderPurchaseItemTable(purchases, withActions) {
+  const isAdmin = state.perfil === 'admin';
+
+  // Achatando as compras para obter os itens individuais
+  const flattenedItems = [];
+  purchases.forEach((purchase) => {
+    const payment = purchase.pagamentos[0] || {};
+    purchase.itens.forEach((item) => {
+      flattenedItems.push({
+        ...item,
+        purchaseId: purchase.id,
+        fornecedor: purchase.fornecedor,
+        dataCompra: purchase.dataCompra,
+        statusCompra: purchase.statusCompra,
+        formaPagamento: payment.formaPagamento || '-',
+        parcelas: payment.parcelas,
+        valorParcela: payment.valorParcela || 0,
+      });
+    });
+  });
+
+  if (!flattenedItems.length) return empty('Nenhum item cadastrado.');
+
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Fornecedor</th>
+            <th>Data</th>
+            <th>Categoria</th>
+            <th>Qtd.</th>
+            <th>Unitário</th>
+            <th>Total</th>
+            <th>Pagamento</th>
+            <th>Status</th>
+            ${withActions && isAdmin ? '<th>Ações</th>' : ''}
+          </tr>
+        </thead>
+        <tbody>
+          ${flattenedItems.map((item) => {
+            const category = getCategoryForPurchaseItem(item);
+            return `
+              <tr>
+                <td><strong>${escapeHtml(item.nome)}</strong><br><span class="muted">${escapeHtml(item.vinculoCatalogoId || 'Sem vínculo')}</span></td>
+                <td><strong>${escapeHtml(item.fornecedor)}</strong></td>
+                <td>${item.dataCompra || '-'}</td>
+                <td><span class="badge" style="border-color: var(--border); color: var(--muted);">${escapeHtml(category)}</span></td>
+                <td>${item.quantidade} un</td>
+                <td>${formatMoney(item.valorUnitario)}</td>
+                <td><strong>${formatMoney(item.valorTotal)}</strong></td>
+                <td>${escapeHtml(item.formaPagamento)}<br><span class="muted">${item.parcelas ? `${item.parcelas}x ${formatMoney(item.valorParcela)}` : ''}</span></td>
+                <td>${badge(item.statusCompra)}</td>
+                ${withActions && isAdmin ? `
+                  <td>
+                    <div class="top-actions" style="justify-content: flex-start;">
+                      <button class="icon-button danger" data-action="delete-purchase" data-id="${escapeHtml(item.purchaseId)}">Excluir Compra</button>
+                    </div>
+                  </td>
+                ` : ''}
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function getCategoryForPurchaseItem(item) {
+  if (item.catalogItem?.categoria) {
+    return item.catalogItem.categoria;
+  }
+  if (item.vinculoCatalogoId) {
+    const catalogItem = state.catalog.find(c => c.id === item.vinculoCatalogoId);
+    if (catalogItem?.categoria) return catalogItem.categoria;
+  }
+  // Tentar encontrar por correspondência de nome exato
+  const catalogItemByName = state.catalog.find(c => c.nome.toLowerCase() === item.nome.toLowerCase());
+  if (catalogItemByName?.categoria) return catalogItemByName.categoria;
+
+  return 'Outros';
+}
+
+function getPurchaseSummaryByCategory() {
+  const categoryTotals = {};
+  let totalCompradoItens = 0;
+
+  state.purchases.forEach((purchase) => {
+    if (purchase.statusCompra === 'rascunho') return;
+    purchase.itens.forEach((item) => {
+      const category = getCategoryForPurchaseItem(item);
+      const value = item.valorTotal || 0;
+      categoryTotals[category] = (categoryTotals[category] || 0) + value;
+      totalCompradoItens += value;
+    });
+  });
+
+  const categories = Object.entries(categoryTotals).map(([name, total]) => ({
+    name,
+    total,
+    percentage: totalCompradoItens > 0 ? Math.round((total / totalCompradoItens) * 100) : 0,
+  }));
+
+  // Ordenar decrescente por total
+  categories.sort((a, b) => b.total - a.total);
+
+  return { categories, totalCompradoItens };
+}
+
+function drawDonutChart(categories, total) {
+  const radius = 50;
+  const circumference = 2 * Math.PI * radius;
+  let currentOffset = 0;
+
+  const colors = [
+    'var(--cyan)',
+    'var(--emerald)',
+    'var(--amber)',
+    'var(--rose)',
+    'var(--blue)',
+    '#a855f7', // Roxo
+    '#ec4899', // Rosa
+    '#f43f5e', // Rosa escuro
+    '#10b981', // Verde
+  ];
+
+  if (!categories.length || total === 0) {
+    return `
+      <svg viewBox="0 0 140 140" width="100%" height="100%">
+        <circle cx="70" cy="70" r="${radius}" fill="transparent" stroke="var(--border)" stroke-width="14" />
+        <circle cx="70" cy="70" r="${radius - 7}" fill="var(--panel)" />
+      </svg>
+    `;
+  }
+
+  let svgHtml = `<svg viewBox="0 0 140 140" width="100%" height="100%" style="transform: rotate(-90deg);">`;
+
+  categories.forEach((cat, index) => {
+    const percent = cat.total / total;
+    const strokeLength = percent * circumference;
+    const strokeOffset = circumference - currentOffset;
+    const color = colors[index % colors.length];
+
+    svgHtml += `
+      <circle
+        cx="70"
+        cy="70"
+        r="${radius}"
+        fill="transparent"
+        stroke="${color}"
+        stroke-width="14"
+        stroke-dasharray="${strokeLength} ${circumference}"
+        stroke-dashoffset="${strokeOffset}"
+        style="transform-origin: 50% 50%;"
+        class="chart-segment"
+        title="${escapeHtml(cat.name)}: ${Math.round(percent * 100)}%"
+      />
+    `;
+    currentOffset += strokeLength;
+  });
+
+  svgHtml += `
+    <circle cx="70" cy="70" r="${radius - 7}" fill="var(--panel)" />
+  </svg>`;
+
+  return svgHtml;
 }
 
 function renderCardTable() {
@@ -428,8 +668,13 @@ function renderCardForm() {
 async function handleClick(event) {
   const button = event.target.closest('[data-action]');
   if (!button) return;
-
   const action = button.dataset.action;
+
+  if (action === 'toggle-view-mode') {
+    state.purchaseViewMode = button.dataset.mode;
+    render();
+    return;
+  }
 
   if (action === 'add-item-row') {
     const container = document.getElementById('purchaseItems');

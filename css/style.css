@@ -458,3 +458,159 @@ td {
     background: rgba(2, 6, 23, 0.5);
   }
 }
+
+/* Estilos para Toggles de Visualização */
+.table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #090d16;
+  padding: 3px;
+  gap: 2px;
+}
+
+.toggle-btn {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 9px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.toggle-btn:hover {
+  color: var(--text);
+}
+
+.toggle-btn.active {
+  background: rgba(34, 211, 238, 0.15);
+  color: var(--cyan);
+}
+
+/* Estilos para o Gráfico de Rosca (Donut) */
+.category-chart-container {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 24px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.chart-wrapper {
+  position: relative;
+  width: 140px;
+  height: 140px;
+}
+
+.chart-center-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  text-align: center;
+}
+
+.chart-center-text span {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.chart-center-text strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+  margin-top: 2px;
+}
+
+.chart-segment {
+  cursor: pointer;
+  transition: stroke-width 0.25s ease, filter 0.25s ease;
+}
+
+.chart-segment:hover {
+  stroke-width: 17px;
+  filter: drop-shadow(0 0 5px rgba(34, 211, 238, 0.4));
+}
+
+.chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 150px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Custom scrollbar for legend if many categories */
+.chart-legend::-webkit-scrollbar {
+  width: 4px;
+}
+.chart-legend::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chart-legend::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.legend-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.legend-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.legend-color {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-values {
+  text-align: right;
+  font-weight: 700;
+}
+
+.legend-pct {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: 6px;
+}
+
+@media (max-width: 480px) {
+  .category-chart-container {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 16px;
+  }
+}
