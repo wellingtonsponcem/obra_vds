@@ -254,7 +254,7 @@ export class OcrService {
       body: JSON.stringify({
         model: 'qwen/qwen3.6-27b',
         temperature: 0,
-        max_tokens: 1024,
+        max_tokens: 400,
         // Esconde reasoning <think> do modelo Qwen para não poluir JSON
         // @ts-ignore Groq reasoning_format
         reasoning_format: 'hidden',
@@ -270,6 +270,13 @@ export class OcrService {
       }),
     });
 
+    if (res.status === 429) {
+      const errText = await res.text().catch(() => '');
+      throw new HttpException(
+        `Limite Groq atingido (429): ${errText.substring(0, 300)} — Aguarde 60s ou faça upgrade em https://console.groq.com/settings/billing. Tente com imagem menor/comprimida.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
       throw new HttpException(

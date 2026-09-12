@@ -788,12 +788,16 @@ async function callGroqVisionVercel(base64, mimeType, prompt, apiKey) {
     body: JSON.stringify({
       model: 'qwen/qwen3.6-27b',
       temperature: 0,
-      max_tokens: 1024,
+      max_tokens: 400,
       // @ts-ignore Groq reasoning_format hidden para não retornar <think>
       reasoning_format: 'hidden',
       messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
     }),
   });
+  if (res.status === 429) {
+    const t = await res.text().catch(() => '');
+    throw Object.assign(new Error(`Limite Groq atingido (429): ${t.substring(0, 300)} — Aguarde 60s ou faça upgrade em https://console.groq.com/settings/billing. Tente com imagem menor/comprimida.`), { status: 429 });
+  }
   if (!res.ok) {
     const t = await res.text().catch(() => '');
     throw Object.assign(new Error(`Groq Vision falhou: ${res.status} ${t.substring(0, 400)}`), { status: 502 });
