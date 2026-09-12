@@ -679,13 +679,16 @@ async function handleOcrParse(req, res) {
   const contentType = req.headers['content-type'] || '';
   try {
     if (contentType.includes('application/json')) {
-      const body = await parseJson(req);
+      let raw = '';
+      for await (const chunk of req) raw += chunk;
+      let body;
+      try { body = JSON.parse(raw || '{}'); } catch { body = {}; }
       base64 = body.imageBase64 || body.base64 || body.image;
       mimeType = body.mimeType || body.mimetype || 'image/jpeg';
       originalName = body.filename || body.nome || 'mobile.jpg';
       fileSize = body.tamanhoBytes || 0;
       if (!base64) return jsonResponse(res, 400, { message: 'imageBase64 é obrigatório.' });
-      if (base64.includes(',')) base64 = base64.split(',')[1];
+      if (String(base64).includes(',')) base64 = String(base64).split(',')[1];
     } else {
       const form = formidable({ multiples: false, maxFileSize: 10 * 1024 * 1024, keepExtensions: true });
       const [fields, files] = await new Promise((resolve, reject) => {
