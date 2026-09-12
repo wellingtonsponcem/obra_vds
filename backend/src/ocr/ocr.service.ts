@@ -255,6 +255,9 @@ export class OcrService {
         model: 'qwen/qwen3.6-27b',
         temperature: 0,
         max_tokens: 1024,
+        // Esconde reasoning <think> do modelo Qwen para não poluir JSON
+        // @ts-ignore Groq reasoning_format
+        reasoning_format: 'hidden',
         messages: [
           {
             role: 'user',
@@ -276,14 +279,19 @@ export class OcrService {
     }
 
     const json = await res.json();
-    const rawContent: string = json.choices?.[0]?.message?.content || '{}';
-    // Qwen (Groq) retorna <think>...</think> + JSON — remover think e markdown
-    let content = String(rawContent).replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    const rawContent: string = json.choices?.[0]?.message?.content || json.choices?.[0]?.message?.reasoning || '{}';
+    // Qwen (Groq) pode retornar <think>...</think> + JSON — remover think (par e impar) e markdown
+    let content = String(rawContent).replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<\/?think[^>]*>/gi, '').trim();
     content = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
     // Se ainda não é JSON puro, extrai primeiro objeto entre { }
     if (!content.trim().startsWith('{')) {
       const match = content.match(/\{[\s\S]*\}/);
       if (match) content = match[0];
+      else {
+        // Tenta no raw mesmo se think não foi fechado
+        const rawMatch = String(rawContent).match(/\{[\s\S]*\}/);
+        if (rawMatch) content = rawMatch[0].replace(/<think>[\s\S]*$/gi, '').trim();
+      }
     }
     try {
       return JSON.parse(content);

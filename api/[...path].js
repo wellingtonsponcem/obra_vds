@@ -789,6 +789,8 @@ async function callGroqVisionVercel(base64, mimeType, prompt, apiKey) {
       model: 'qwen/qwen3.6-27b',
       temperature: 0,
       max_tokens: 1024,
+      // @ts-ignore Groq reasoning_format hidden para não retornar <think>
+      reasoning_format: 'hidden',
       messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
     }),
   });
@@ -797,18 +799,27 @@ async function callGroqVisionVercel(base64, mimeType, prompt, apiKey) {
     throw Object.assign(new Error(`Groq Vision falhou: ${res.status} ${t.substring(0, 400)}`), { status: 502 });
   }
   const j = await res.json();
-  const rawContent = j.choices?.[0]?.message?.content || '{}';
-  let content = String(rawContent).replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const rawContent = j.choices?.[0]?.message?.content || j.choices?.[0]?.message?.reasoning || '{}';
+  let content = String(rawContent).replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<\/?think[^>]*>/gi, '').trim();
   content = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
   if (!content.trim().startsWith('{')) {
     const m = content.match(/\{[\s\S]*\}/);
     if (m) content = m[0];
+    else {
+      const rawM = String(rawContent).match(/\{[\s\S]*\}/);
+      if (rawM) content = rawM[0].replace(/<think>[\s\S]*$/gi, '').trim();
+    }
   }
   try {
     return JSON.parse(content);
   } catch (e) {
     const m = String(rawContent).match(/\{[\s\S]*\}/);
-    if (m) return JSON.parse(m[0]);
+    if (m) {
+      try { return JSON.parse(m[0]); } catch {}
+      // Tenta limpar think dentro do JSON extraído
+      const cleaned = m[0].replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<\/?think[^>]*>/gi, '').trim();
+      return JSON.parse(cleaned);
+    }
     throw e;
   }
 }
