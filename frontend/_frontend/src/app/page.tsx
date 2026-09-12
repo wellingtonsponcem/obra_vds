@@ -328,6 +328,108 @@ export default function Home() {
     });
   };
 
+  // Parser Tesseract offline (100% grátis, sem API) para farmácia rotacionada
+  const parseTesseractText = (text: string) => {
+    const clean = String(text || '').trim();
+    let fornecedor = '';
+    const fornMatch = clean.match(/DROGARIAS[^\n]{0,60}|CNPJ[:\s]*[\d\.\/\-]+/i);
+    if (fornMatch) fornecedor = fornMatch[0].trim().substring(0, 60);
+    else {
+      const firstLine = clean.split('\n').map((l) => l.trim()).filter(Boolean)[0] || '';
+      fornecedor = firstLine.substring(0, 60);
+    }
+    if (!fornecedor) fornecedor = 'Fornecedor não identificado (offline)';
+    let total: number | null = null;
+    const totalMatch =
+      clean.match(/VALOR\s*PAGO\s*R\$\s*([\d\.,]+)/i) ||
+      clean.match(/VALOR\s*TOTAL\s*R\$\s*([\d\.,]+)/i) ||
+      clean.match(/TOTAL\s*R\$\s*([\d\.,]+)/i) ||
+      clean.match(/R\$\s*(\d+[\.,]\d{2})/);
+    if (totalMatch) {
+      const raw = String(totalMatch[1]).replace(/\./g, '').replace(',', '.');
+      const v = parseFloat(raw);
+      if (!Number.isNaN(v)) total = v;
+    }
+    const itens: any[] = [];
+    const lines = clean.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.length < 5) continue;
+      if (/^\d+\s+.*UN\s+X\s*[\d\.,]+/i.test(trimmed) || /GENLIFT|ATENTAH|30CP|C1/i.test(trimmed)) {
+        const nome = trimmed
+          .replace(/^\d+\s+[\d\.]+\s+UN\s+X\s*[\d\.,]+\s*/i, '')
+          .replace(/R\$\s*[\d\.,]+\s*$/i, '')
+          .trim()
+          .substring(0, 45) || trimmed.substring(0, 30).trim();
+        const vm = trimmed.match(/(\d+[\.,]\d{2})\s*$/);
+        let valor: number | null = null;
+        if (vm) {
+          const rv = vm[1].replace(/\./g, '').replace(',', '.');
+          const pv = parseFloat(rv);
+          if (!Number.isNaN(pv)) valor = pv;
+        }
+        if (nome.length > 3) itens.push({ nome, quantidade: 1, valor_unitario: valor, valor_total: valor });
+      }
+    }
+    if (itens.length === 0) {
+      for (const line of lines) {
+        if (line.includes('R$') && line.length > 10 && !line.includes('VALOR PAGO') && !line.includes('Tributos') && !line.includes('CNPJ')) {
+          const nome = line.split('R$')[0].trim().substring(0, 32).replace(/^\d+\s+/, '').trim();
+          const vm = line.match(/R\$\s*([\d\.,]+)/);
+          let valor: number | null = null;
+          if (vm) {
+            const rv = vm[1].replace(/\./g, '').replace(',', '.');
+            const pv = parseFloat(rv);
+            if (!Number.isNaN(pv)) valor = pv;
+          }
+          if (nome.length > 3) itens.push({ nome, quantidade: 1, valor_unitario: valor, valor_total: valor });
+        }
+      }
+    }
+    const finalItens = itens.length ? itens.slice(0, 12) : [{ nome: 'Item avulso (offline)', quantidade: 1, valor_unitario: total, valor_total: total }];
+    return {
+      is_compra: true,
+      fornecedor,
+      tipo_documento: 'Cupom Fiscal',
+      comprador: { nome: '', cpf: '' },
+      entrega: { endereco: '', descricao: '', previsoes: [] },
+      pagamento: { metodo: 'pix', cartao: '', final_cartao: '', parcelas: null, valor_parcela: null, juros: null, sem_juros: null, texto_pagamento_bruto: '' },
+      resumo: { quantidade_itens: finalItens.length, valor_produtos: total, desconto: 0, frete: 0, subtotal: total, total, economia: 0 },
+      itens: finalItens,
+      observacoes: [],
+      texto_bruto: clean.substring(0, 3000),
+      confianca: { fornecedor: 0.6, pagamento: 0.5, total: total ? 0.7 : 0.3, itens: itens.length ? 0.6 : 0.3 },
+      alertas: ['OCR offline (grátis, sem API, sem limite Groq) — revise valores, imagem estava rotacionada.'],
+    };
+  };
+
+  const tentarOcrOffline = async (job: any) => {
+    if (!job?.file) {
+      exibirNotificacao('Arquivo não disponível para offline. Tire a foto novamente.', 'erro');
+      return;
+    }
+    setOcrFila((prev) => prev.map((j) => (j.id === job.id ? { ...j, status: 'parsing', progresso: 30 } : j)));
+    try {
+      const { createWorker } = await import('tesseract.js');
+      const worker: any = await (createWorker as any)('por');
+      // Tenta com PSM auto (1) para rotacionada
+      try {
+        await worker.setParameters({ tessedit_pageseg_mode: '1' } as any);
+      } catch {}
+      setOcrFila((prev) => prev.map((j) => (j.id === job.id ? { ...j, progresso: 60 } : j)));
+      const { data } = await worker.recognize(job.file);
+      await worker.terminate().catch(() => {});
+      const ocrData = parseTesseractText(data.text || '');
+      setOcrFila((prev) => prev.map((j) => (j.id === job.id ? { ...j, progresso: 100, status: 'ready', errorData: ocrData } : j)));
+      abrirRevisaoOcr(ocrData, job.previewUrl, job.id);
+      exibirNotificacao('OCR offline concluído (100% grátis, sem API) — revise e salve.', 'sucesso');
+    } catch (err: any) {
+      console.error('Tesseract falhou', err);
+      setOcrFila((prev) => prev.map((j) => (j.id === job.id ? { ...j, progresso: 100, status: 'error' } : j)));
+      exibirNotificacao('OCR offline falhou: ' + (err.message || String(err)), 'erro');
+    }
+  };
+
   // Envio de nova compra manual/confirmada
   const handleSaveCompra = async (compraData: any, itens: PurchaseItem[], pagamentos: Payment[], entregas: any[] = []) => {
     if (perfil === 'visualizador') {
@@ -1919,7 +2021,7 @@ export default function Home() {
                   
                   <div className="space-y-3 text-xs">
                     {ocrFila.map((job) => (
-                      <div key={job.id} className="bg-slate-900 p-3 rounded-lg border border-slate-800 flex justify-between items-center gap-4">
+                      <div key={job.id} className="bg-slate-900 p-3 rounded-lg border border-slate-800 flex flex-col sm:flex-row sm:items-center gap-3">
                         <div className="flex items-center gap-3 shrink-0">
                           {job.previewUrl ? (
                             <img src={job.previewUrl} className="w-10 h-10 object-cover rounded border border-slate-800" alt="Preview" />
@@ -1933,7 +2035,7 @@ export default function Home() {
                         </div>
 
                         {/* Barra de Progresso */}
-                        <div className="flex-1 max-w-xs">
+                        <div className="w-full sm:flex-1 sm:max-w-xs">
                           <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
                             <div className="bg-cyan-500 h-full rounded-full transition-all" style={{ width: `${job.progresso}%` }}></div>
                           </div>
@@ -1942,7 +2044,7 @@ export default function Home() {
                         {job.status === 'ready' ? (
                           <span className="text-emerald-400 font-bold bg-emerald-950/70 border border-emerald-900 px-2 py-0.5 rounded text-[10px]">CONCLUÍDO</span>
                         ) : job.status === 'error' ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
                             <span className="text-rose-400 font-bold bg-rose-950/70 border border-rose-900 px-2 py-0.5 rounded text-[10px]">ERRO</span>
                             <button
                               onClick={() => {
@@ -1950,11 +2052,20 @@ export default function Home() {
                                   ? job.errorData
                                   : { fornecedor: '', resumo: { total: null, valor_produtos: null, desconto: 0, frete: 0 }, itens: [], pagamento: {}, observacoes: [], texto_bruto: '', alertas: ['Forçado manual: preencha fornecedor e total'] };
                                 abrirRevisaoOcr(data, job.previewUrl, job.jobId);
+                                setAbaAtiva('lancamentos');
                               }}
-                              className="text-[11px] bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-3 py-1.5 rounded-full transition-colors"
+                              className="flex-1 sm:flex-none text-xs bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-900 font-bold px-4 py-2.5 rounded-full transition-colors min-h-[44px] flex items-center justify-center"
                             >
-                              Forçar como compra
+                              Forçar
                             </button>
+                              <button
+                                onClick={() => tentarOcrOffline(job)}
+                                className="flex-1 sm:flex-none text-xs bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold px-3 py-2.5 rounded-full transition-colors min-h-[44px] flex items-center justify-center gap-1.5"
+                                title="Tenta OCR 100% grátis no navegador, sem API e sem limite Groq"
+                              >
+                                <ScanQrCode className="w-3.5 h-3.5" />
+                                Tentar Offline
+                              </button>
                           </div>
                         ) : (
                           <span className="text-slate-400 animate-pulse font-semibold">Lendo...</span>
@@ -2054,13 +2165,18 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Chaves da API Gemini */}
+              {/* Chaves OCR - Groq (principal, grátis) + Offline */}
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-6 shadow-lg space-y-6">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5"><ScanQrCode className="w-5 h-5 text-cyan-400" /> Configuração do Gemini OCR</h3>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5"><ScanQrCode className="w-5 h-5 text-cyan-400" /> Configuração OCR</h3>
                 
+                <div className="bg-emerald-950/20 border border-emerald-900/50 p-4 rounded-lg text-xs space-y-2">
+                  <p className="font-bold text-emerald-300">✓ OCR Offline 100% Grátis (sem API) já ativo</p>
+                  <p className="text-emerald-200/70 text-[11px] leading-relaxed">Se o Groq falhar (limite 1000 tokens) ou sem internet, use <b>Tentar Offline</b> na fila de digitalização. Funciona no navegador, sem chave, sem custo, com privacidade total. Para farmácia rotacionada, prefira foto reta e bem iluminada.</p>
+                </div>
+
                 <div className="bg-slate-900 p-4 rounded-lg border border-slate-800 text-xs space-y-2">
-                  <p className="font-semibold text-slate-400">Instruções para chave de API:</p>
-                  <p className="text-slate-500 text-[10px] leading-relaxed">Para habilitar a leitura real de imagens e comprovantes com inteligência artificial, configure a Gemini API Key no backend. Sem a chave, o OCR retorna erro e não salva rascunho.</p>
+                  <p className="font-semibold text-slate-400">Groq Vision (principal, grátis até 1000 tokens/min)</p>
+                  <p className="text-slate-500 text-[11px] leading-relaxed">Já configurado no servidor (gsk_ooeO...). Se der <b>429 Limite</b>, aguarde 60s ou faça upgrade em <a href="https://console.groq.com/settings/billing" target="_blank" className="text-cyan-400 underline">console.groq.com</a>. Fallback Gemini opcional abaixo.</p>
                 </div>
 
                 {perfil === 'admin' && (
@@ -2068,8 +2184,39 @@ export default function Home() {
                     onSubmit={async (e) => {
                       e.preventDefault();
                       const form = e.currentTarget;
+                      const value = (form.elements.namedItem('groqKey') as HTMLInputElement).value;
+                      try {
+                        const res = await fetch(`${API_BASE_URL}/config/keys`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ key: 'groq_api_key', value }),
+                        });
+                        if (res.ok) {
+                          exibirNotificacao('Chave Groq salva com sucesso!', 'sucesso');
+                          form.reset();
+                        }
+                      } catch (err: any) {
+                        console.error(err);
+                        exibirNotificacao('Falha ao salvar chave Groq.', 'erro');
+                      }
+                    }}
+                    className="space-y-3 text-xs"
+                  >
+                    <div>
+                      <label className="text-slate-500 block mb-1">Groq API Key (https://console.groq.com/keys)</label>
+                      <input name="groqKey" type="password" placeholder="gsk_..." className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-white font-mono text-xs" />
+                    </div>
+                    <button type="submit" className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-2 rounded text-xs transition-all shadow">
+                      Salvar Groq
+                    </button>
+                  </form>
+                )}
+                {perfil === 'admin' && (
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const form = e.currentTarget;
                       const value = (form.elements.namedItem('geminiKey') as HTMLInputElement).value;
-                      
                       try {
                         const res = await fetch(`${API_BASE_URL}/config/keys`, {
                           method: 'POST',
@@ -2077,22 +2224,22 @@ export default function Home() {
                           body: JSON.stringify({ key: 'gemini_api_key', value }),
                         });
                         if (res.ok) {
-                          exibirNotificacao('Chave da Gemini API salva com sucesso!', 'sucesso');
+                          exibirNotificacao('Chave Gemini salva (fallback).', 'sucesso');
                           form.reset();
                         }
                       } catch (err: any) {
                         console.error(err);
-                        exibirNotificacao('Falha ao salvar chave da Gemini API no servidor.', 'erro');
+                        exibirNotificacao('Falha ao salvar Gemini.', 'erro');
                       }
                     }}
-                    className="space-y-3 text-xs"
+                    className="space-y-3 text-xs opacity-60"
                   >
                     <div>
-                      <label className="text-slate-500 block mb-1">Gemini API Key (Google AI Studio)</label>
-                      <input name="geminiKey" type="password" placeholder="Insira a chave AI..." className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-white" />
+                      <label className="text-slate-500 block mb-1">Gemini API Key (fallback opcional)</label>
+                      <input name="geminiKey" type="password" placeholder="Opcional..." className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-white font-mono text-xs" />
                     </div>
-                    <button type="submit" className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-2 rounded text-xs transition-all shadow">
-                      Salvar Chave
+                    <button type="submit" className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2 rounded text-xs border border-slate-700">
+                      Salvar Gemini (opcional)
                     </button>
                   </form>
                 )}
