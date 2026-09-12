@@ -215,6 +215,10 @@ export async function ensureSchema() {
     VALUES ($1, 'Obra VDS', 'BRL', 0, 0, 0)
     ON CONFLICT (id) DO NOTHING;
   `, [PROJECT_ID]);
+  // Normaliza status legados (ex: "Pendente" -> "pendente") para evitar bug de case-sensitive
+  await pool.query(`UPDATE catalog_item SET status_catalogo = LOWER(status_catalogo) WHERE status_catalogo <> LOWER(status_catalogo)`);
+  await pool.query(`UPDATE purchase SET status_compra = LOWER(status_compra) WHERE status_compra <> LOWER(status_compra)`);
+  await pool.query(`UPDATE purchase SET status_entrega = LOWER(status_entrega) WHERE status_entrega <> LOWER(status_entrega)`);
 
   schemaReady = true;
 }
@@ -282,7 +286,7 @@ export function mapCatalogItem(row, metrics = {}) {
     custoOrcadoTotal: Number(row.custo_orcado_total || 0),
     localCompraPlanejado: row.local_compra_planejado,
     prioridade: row.prioridade,
-    statusCatalogo: row.status_catalogo,
+    statusCatalogo: String(row.status_catalogo || '').toLowerCase(),
     fornecedorPlanejado: row.fornecedor_planejado,
     origemPlanilha: row.origem_planilha,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
@@ -330,10 +334,10 @@ export async function calculateSummary() {
   const totalOrcado = items.reduce((sum, item) => sum + item.custoOrcadoTotal, 0);
   const totalComprado = purchasesResult.rows.reduce((sum, row) => sum + Number(row.total_pago || 0), 0);
   const totalPendente = items
-    .filter((item) => item.statusCatalogo === 'pendente')
+    .filter((item) => String(item.statusCatalogo).toLowerCase() === 'pendente')
     .reduce((sum, item) => sum + item.saldoPendente, 0);
   const totalRecebido = items
-    .filter((item) => item.statusCatalogo === 'recebido')
+    .filter((item) => String(item.statusCatalogo).toLowerCase() === 'recebido')
     .reduce((sum, item) => sum + item.custoOrcadoTotal, 0);
   const totalComJuros = purchasesResult.rows.reduce((sum, row) => sum + Number(row.total_juros || 0), 0);
   const totalEconomia = items.reduce((sum, item) => sum + item.economia, 0);
@@ -370,7 +374,7 @@ export async function fetchCatalogItems(filters = {}) {
   }
 
   if (filters.statusCatalogo) {
-    where.push(`ci.status_catalogo = $${params.length + 1}`);
+    where.push(`LOWER(ci.status_catalogo) = LOWER($${params.length + 1})`);
     params.push(filters.statusCatalogo);
   }
 
@@ -475,7 +479,7 @@ export async function fetchPurchases(filters = {}) {
   }
 
   if (filters.statusCompra) {
-    where.push(`p.status_compra = $${params.length + 1}`);
+    where.push(`LOWER(p.status_compra) = LOWER($${params.length + 1})`);
     params.push(filters.statusCompra);
   }
 
@@ -490,7 +494,7 @@ export async function fetchPurchases(filters = {}) {
 
   if (filters.formaPagamento) {
     return purchases.filter((purchase) =>
-      purchase.pagamentos.some((payment) => payment.formaPagamento === filters.formaPagamento),
+      purchase.pagamentos.some((payment) => String(payment.formaPagamento).toLowerCase() === String(filters.formaPagamento).toLowerCase()),
     );
   }
 
@@ -515,8 +519,8 @@ export function mapPurchase(row, nested = {}) {
     projectId: row.project_id,
     origem: row.origem,
     fornecedor: row.fornecedor,
-    statusCompra: row.status_compra,
-    statusEntrega: row.status_entrega,
+    statusCompra: String(row.status_compra || '').toLowerCase(),
+    statusEntrega: String(row.status_entrega || '').toLowerCase(),
     compradorNome: row.comprador_nome,
     compradorCpf: row.comprador_cpf,
     enderecoEntrega: row.endereco_entrega,

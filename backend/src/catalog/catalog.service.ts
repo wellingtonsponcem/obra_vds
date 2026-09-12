@@ -22,7 +22,7 @@ export class CatalogService {
       where.categoria = filters.categoria;
     }
     if (filters.statusCatalogo) {
-      where.statusCatalogo = filters.statusCatalogo;
+      where.statusCatalogo = { equals: filters.statusCatalogo, mode: 'insensitive' };
     }
     if (filters.prioridade) {
       where.prioridade = filters.prioridade === 'null' ? null : filters.prioridade;
@@ -52,7 +52,7 @@ export class CatalogService {
     // Calcula acumulados e saldos em runtime para garantir precisão e tempo real
     return items.map((item) => {
       const purchaseItemsValidos = item.purchaseItems.filter(
-        (pi) => pi.purchase.statusCompra !== 'rascunho',
+        (pi) => String(pi.purchase.statusCompra).toLowerCase() !== 'rascunho',
       );
 
       const precoPagoAcumulado = purchaseItemsValidos.reduce(
@@ -87,7 +87,7 @@ export class CatalogService {
     const purchases = await this.prisma.purchase.findMany({
       where: {
         projectId: 'obra_vds_001',
-        statusCompra: { not: 'rascunho' },
+        statusCompra: { not: 'rascunho', mode: 'insensitive' },
       },
       include: {
         pagamentos: true,
@@ -99,14 +99,14 @@ export class CatalogService {
     // Total comprado real é o total pago acumulado nas compras efetivas
     const totalComprado = purchases.reduce((acc, curr) => acc + curr.totalPago, 0);
 
-    // Total pendente: itens de catálogo com status 'pendente' ou saldo pendente
+    // Total pendente: itens de catálogo com status 'pendente' ou saldo pendente (case-insensitive)
     const totalPendente = items
-      .filter((i) => i.statusCatalogo === 'pendente')
+      .filter((i) => String(i.statusCatalogo).toLowerCase() === 'pendente')
       .reduce((acc, curr) => acc + curr.saldoPendente, 0);
 
     // Total recebido: custo orçado total dos itens com status 'recebido'
     const totalRecebido = items
-      .filter((i) => i.statusCatalogo === 'recebido')
+      .filter((i) => String(i.statusCatalogo).toLowerCase() === 'recebido')
       .reduce((acc, curr) => acc + curr.custoOrcadoTotal, 0);
 
     // Total com juros: somatória de juros nas compras
@@ -167,7 +167,7 @@ export class CatalogService {
     }
 
     const purchaseItemsValidos = item.purchaseItems.filter(
-      (pi) => pi.purchase.statusCompra !== 'rascunho',
+      (pi) => String(pi.purchase.statusCompra).toLowerCase() !== 'rascunho',
     );
 
     const precoPagoAcumulado = purchaseItemsValidos.reduce(

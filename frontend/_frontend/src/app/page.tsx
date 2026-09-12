@@ -599,7 +599,7 @@ export default function Home() {
   };
 
   const catalogFiltered = catalog.filter(item => {
-    if (filterStatus !== 'todos' && item.statusCatalogo !== filterStatus) return false;
+    if (filterStatus !== 'todos' && String(item.statusCatalogo).toLowerCase() !== filterStatus) return false;
     if (searchTerm && !item.nome.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
@@ -1258,20 +1258,20 @@ export default function Home() {
                                 <div className="text-right shrink-0 ml-3 flex flex-col items-end gap-1.5">
                                   <p className="text-sm font-bold text-white">{formatarMoeda(item.precoOrcadoUnitario)}</p>
                                   <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                                    item.statusCatalogo === 'comprado'
+                                    String(item.statusCatalogo).toLowerCase() === 'comprado'
                                       ? 'bg-emerald-900/30 text-emerald-400'
-                                      : item.statusCatalogo === 'recebido'
+                                      : String(item.statusCatalogo).toLowerCase() === 'recebido'
                                         ? 'bg-emerald-900/30 text-emerald-400'
-                                        : item.statusCatalogo === 'cancelado'
+                                        : String(item.statusCatalogo).toLowerCase() === 'cancelado'
                                           ? 'bg-slate-800 text-slate-400'
-                                          : item.statusCatalogo === 'divergente'
+                                          : String(item.statusCatalogo).toLowerCase() === 'divergente'
                                             ? 'bg-rose-900/30 text-rose-400'
                                             : 'bg-amber-900/30 text-amber-400'
                                   }`}>
-                                    {item.statusCatalogo === 'comprado' ? 'Comprado' :
-                                     item.statusCatalogo === 'recebido' ? 'Recebido' :
-                                     item.statusCatalogo === 'cancelado' ? 'Cancelado' :
-                                     item.statusCatalogo === 'divergente' ? 'Divergente' :
+                                    {String(item.statusCatalogo).toLowerCase() === 'comprado' ? 'Comprado' :
+                                     String(item.statusCatalogo).toLowerCase() === 'recebido' ? 'Recebido' :
+                                     String(item.statusCatalogo).toLowerCase() === 'cancelado' ? 'Cancelado' :
+                                     String(item.statusCatalogo).toLowerCase() === 'divergente' ? 'Divergente' :
                                      'Pendente'}
                                   </span>
                                 </div>
