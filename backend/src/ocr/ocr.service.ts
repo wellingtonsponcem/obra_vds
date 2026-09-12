@@ -276,15 +276,29 @@ export class OcrService {
     }
 
     const json = await res.json();
-    const content: string = json.choices?.[0]?.message?.content || '{}';
-    // Groq pode envolver JSON em markdown, extrair
-    const cleaned = content.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
-    return JSON.parse(cleaned);
+    const rawContent: string = json.choices?.[0]?.message?.content || '{}';
+    // Qwen (Groq) retorna <think>...</think> + JSON — remover think e markdown
+    let content = String(rawContent).replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    content = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+    // Se ainda não é JSON puro, extrai primeiro objeto entre { }
+    if (!content.trim().startsWith('{')) {
+      const match = content.match(/\{[\s\S]*\}/);
+      if (match) content = match[0];
+    }
+    try {
+      return JSON.parse(content);
+    } catch (e) {
+      // Fallback: tenta extrair JSON mesmo com lixo antes/depois
+      const match = String(rawContent).match(/\{[\s\S]*\}/);
+      if (match) return JSON.parse(match[0]);
+      throw e;
+    }
   }
 
   private buildPrompt() {
     return `
 Você é um extrator estrito de dados de compras para prestação de contas de obra.
+RETORNE APENAS JSON VÁLIDO. NÃO use tags <think>, NÃO use markdown, NÃO adicione explicação fora do JSON.
 
 Analise a imagem e extraia somente informações visíveis. Não invente dados. Não use compras anteriores. Não preencha com exemplos.
 

@@ -797,9 +797,20 @@ async function callGroqVisionVercel(base64, mimeType, prompt, apiKey) {
     throw Object.assign(new Error(`Groq Vision falhou: ${res.status} ${t.substring(0, 400)}`), { status: 502 });
   }
   const j = await res.json();
-  const content = j.choices?.[0]?.message?.content || '{}';
-  const cleaned = String(content).trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
-  return JSON.parse(cleaned);
+  const rawContent = j.choices?.[0]?.message?.content || '{}';
+  let content = String(rawContent).replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  content = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+  if (!content.trim().startsWith('{')) {
+    const m = content.match(/\{[\s\S]*\}/);
+    if (m) content = m[0];
+  }
+  try {
+    return JSON.parse(content);
+  } catch (e) {
+    const m = String(rawContent).match(/\{[\s\S]*\}/);
+    if (m) return JSON.parse(m[0]);
+    throw e;
+  }
 }
 async function callGeminiVisionVercel(base64, mimeType, prompt, apiKey) {
   const { GoogleGenAI } = await import('@google/genai');
@@ -814,6 +825,7 @@ async function callGeminiVisionVercel(base64, mimeType, prompt, apiKey) {
 function buildPromptOcr() {
   return `
 Você é um extrator estrito de dados de compras para prestação de contas de obra.
+RETORNE APENAS JSON VÁLIDO. NÃO use tags <think>, NÃO use markdown, NÃO adicione explicação fora do JSON.
 Analise a imagem e extraia somente informações visíveis. Não invente dados.
 Se a imagem não parecer um comprovante, nota, boleto, checkout, pedido, recibo ou confirmação de compra, retorne:
 {
