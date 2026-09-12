@@ -1944,14 +1944,17 @@ export default function Home() {
                         ) : job.status === 'error' ? (
                           <div className="flex items-center gap-2">
                             <span className="text-rose-400 font-bold bg-rose-950/70 border border-rose-900 px-2 py-0.5 rounded text-[10px]">ERRO</span>
-                            {job.errorData && (
-                              <button
-                                onClick={() => abrirRevisaoOcr(job.errorData, job.previewUrl, job.jobId)}
-                                className="text-[11px] bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-3 py-1.5 rounded-full transition-colors"
-                              >
-                                Forçar como compra
-                              </button>
-                            )}
+                            <button
+                              onClick={() => {
+                                const data = job.errorData && (job.errorData.fornecedor || job.errorData.resumo?.total || job.errorData.itens?.length)
+                                  ? job.errorData
+                                  : { fornecedor: '', resumo: { total: null, valor_produtos: null, desconto: 0, frete: 0 }, itens: [], pagamento: {}, observacoes: [], texto_bruto: '', alertas: ['Forçado manual: preencha fornecedor e total'] };
+                                abrirRevisaoOcr(data, job.previewUrl, job.jobId);
+                              }}
+                              className="text-[11px] bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-3 py-1.5 rounded-full transition-colors"
+                            >
+                              Forçar como compra
+                            </button>
                           </div>
                         ) : (
                           <span className="text-slate-400 animate-pulse font-semibold">Lendo...</span>

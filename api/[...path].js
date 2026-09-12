@@ -843,6 +843,7 @@ Você é um extrator de qualquer comprovante de compra (farmácia, mercado, obra
 RETORNE APENAS JSON VÁLIDO. NÃO use tags <think>, NÃO use markdown, NÃO adicione explicação fora do JSON.
 Analise a imagem e extraia somente informações visíveis. Não invente dados.
 Se a imagem for farmácia/drogaria com total e itens (ex: Dipirona, Pague Menos), considere is_compra=true mesmo não sendo material de obra.
+A imagem pode estar rotacionada 90°/180°, de lado, invertida ou com perspectiva e sombra — tente ler mesmo assim. Procure cabeçalhos como "Documento Auxiliar", "DROGARIAS PACHECO", "CNPJ", "Valor Pago", "PIX", "QR Code", "Tributos Aprox." e itens no formato "QTD x VALOR".
 Se a imagem não parecer um comprovante, nota, boleto, checkout, pedido, recibo ou confirmação de compra, retorne:
 {
   "is_compra": false,
