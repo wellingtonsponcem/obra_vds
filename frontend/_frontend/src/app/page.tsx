@@ -971,31 +971,47 @@ export default function Home() {
                       <tr className="border-b border-slate-800 text-slate-500 font-semibold">
                         <th className="pb-3 font-semibold">ID</th>
                         <th className="pb-3 font-semibold">Fornecedor</th>
-                        <th className="pb-3 font-semibold">Origem</th>
                         <th className="pb-3 font-semibold">Valor Total</th>
-                        <th className="pb-3 font-semibold">Forma de Pagamento</th>
-                        <th className="pb-3 font-semibold">Status de Compra</th>
+                        <th className="pb-3 font-semibold">Forma</th>
+                        <th className="pb-3 font-semibold">Cartão</th>
+                        <th className="pb-3 font-semibold">Parcelas</th>
+                        <th className="pb-3 font-semibold">Status</th>
                         <th className="pb-3 font-semibold text-right">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800 text-slate-300">
                       {purchases.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="py-4 text-center text-slate-500">Nenhuma compra cadastrada no banco.</td>
+                          <td colSpan={8} className="py-4 text-center text-slate-500">Nenhuma compra cadastrada no banco.</td>
                         </tr>
                       ) : (
                         purchases.slice(0, 5).map((p) => (
                           <tr key={p.id} className="hover:bg-slate-900/40 transition-all">
-                            <td className="py-3.5 font-mono text-cyan-400">{p.id}</td>
-                            <td className="py-3.5 font-semibold text-white">{p.fornecedor}</td>
-                            <td className="py-3.5">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${p.origem === 'ocr_checkout' ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
-                                {p.origem === 'ocr_checkout' ? 'OCR' : 'Manual'}
-                              </span>
-                            </td>
+                            <td className="py-3.5 font-mono text-cyan-400 text-[11px]">{p.id}</td>
+                            <td className="py-3.5 font-semibold text-white">{p.fornecedor}<br/><span className="text-[10px] text-slate-500 font-normal">{p.origem === 'ocr_checkout' ? 'OCR' : 'Manual'}</span></td>
                             <td className="py-3.5 font-bold text-white">{formatarMoeda(p.totalPago)}</td>
-                            <td className="py-3.5 uppercase font-semibold text-slate-400">
+                            <td className="py-3.5 uppercase font-semibold text-slate-400 text-[11px]">
                               {p.pagamentos[0]?.formaPagamento.replace('_', ' ') || 'Pix'}
+                            </td>
+                            <td className="py-3.5">
+                              {p.pagamentos[0]?.card ? (
+                                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-white font-semibold">
+                                  <CreditCard className="w-3 h-3 text-cyan-400" />
+                                  {p.pagamentos[0].card.nome} **** {p.pagamentos[0].card.finalCartao}
+                                </span>
+                              ) : (
+                                <span className="text-slate-500">—</span>
+                              )}
+                            </td>
+                            <td className="py-3.5">
+                              {p.pagamentos[0]?.parcelas ? (
+                                <div className="leading-tight">
+                                  <span className="font-bold text-white">{p.pagamentos[0].parcelas}x</span> <span className="text-slate-300">{formatarMoeda(p.pagamentos[0].valorParcela ?? 0)}</span>
+                                  <br/><span className={`text-[10px] ${p.pagamentos[0].comJuros ? 'text-amber-400' : 'text-emerald-400'}`}>{p.pagamentos[0].comJuros ? 'c/ juros' : 's/ juros'}{p.pagamentos[0].juros ? ` (+${formatarMoeda(p.pagamentos[0].juros)})` : ''}</span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-500">à vista</span>
+                              )}
                             </td>
                             <td className="py-3.5">
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${

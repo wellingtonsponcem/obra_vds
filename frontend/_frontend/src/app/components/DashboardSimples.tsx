@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Eye,
+  CreditCard,
 } from 'lucide-react';
 
 interface DashboardSimplesProps {
@@ -35,7 +36,14 @@ interface DashboardSimplesProps {
     statusCompra: string;
     totalPago: number;
     dataCompra?: string | null;
-    pagamentos: { formaPagamento: string }[];
+    pagamentos: {
+      formaPagamento: string;
+      card?: { nome: string; finalCartao: string } | null;
+      parcelas?: number | null;
+      valorParcela?: number | null;
+      juros?: number | null;
+      comJuros?: boolean | null;
+    }[];
   }[];
   onVerHistorico?: () => void;
   onVerCompra?: (id: string) => void;
@@ -165,34 +173,52 @@ export default function DashboardSimples({
           </div>
         ) : (
           <div className="grid gap-3">
-            {ultimas3.map((p) => (
+            {ultimas3.map((p) => {
+              const pag = p.pagamentos[0];
+              return (
               <div
                 key={p.id}
-                className="flex items-center justify-between bg-slate-900/50 border border-slate-800 rounded-lg px-4 py-3 hover:border-slate-700 transition-colors"
+                className="flex flex-col gap-2 bg-slate-900/50 border border-slate-800 rounded-lg px-4 py-3 hover:border-slate-700 transition-colors"
               >
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-white truncate pr-3">{p.fornecedor}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    {p.dataCompra ? new Date(p.dataCompra).toLocaleDateString('pt-BR') : '—'} •{' '}
-                    <span className="uppercase">{(p.pagamentos[0]?.formaPagamento || 'pix').replace('_', ' ')}</span>
-                  </p>
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-white truncate pr-3">{p.fornecedor}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {p.dataCompra ? new Date(p.dataCompra).toLocaleDateString('pt-BR') : '—'} •{' '}
+                      <span className="uppercase">{(pag?.formaPagamento || 'pix').replace('_', ' ')}</span>
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-extrabold text-white">{formatarMoeda(p.totalPago)}</p>
+                    <span
+                      className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                        p.statusCompra === 'confirmado'
+                          ? 'bg-emerald-950/60 text-emerald-400 border-emerald-900'
+                          : p.statusCompra === 'revisar'
+                          ? 'bg-amber-950/60 text-amber-400 border-amber-900'
+                          : 'bg-slate-800 text-slate-400 border-slate-700'
+                      }`}
+                    >
+                      {p.statusCompra}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-extrabold text-white">{formatarMoeda(p.totalPago)}</p>
-                  <span
-                    className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                      p.statusCompra === 'confirmado'
-                        ? 'bg-emerald-950/60 text-emerald-400 border-emerald-900'
-                        : p.statusCompra === 'revisar'
-                        ? 'bg-amber-950/60 text-amber-400 border-amber-900'
-                        : 'bg-slate-800 text-slate-400 border-slate-700'
-                    }`}
-                  >
-                    {p.statusCompra}
+                <div className="flex flex-wrap items-center gap-2 text-[11px] pt-2 border-t border-slate-800/60">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-200">
+                    <CreditCard className="w-3 h-3 text-cyan-400" />
+                    {pag?.card ? `${pag.card.nome} **** ${pag.card.finalCartao}` : 'Sem cartão'}
                   </span>
+                  {pag?.parcelas ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-200">
+                      <span className="font-bold text-white">{pag.parcelas}x</span> {formatarMoeda(pag.valorParcela ?? 0)}
+                      <span className={`ml-1 text-[10px] ${pag.comJuros ? 'text-amber-400' : 'text-emerald-400'}`}>{pag.comJuros ? 'c/ juros' : 's/ juros'}</span>
+                    </span>
+                  ) : (
+                    <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-400">à vista</span>
+                  )}
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         )}
       </div>
