@@ -13,3 +13,5 @@ backend/node_modules
 backend/dist
 backend/coverage
 .env*
+compras-print/
+Material VDS/

@@ -292,6 +292,42 @@ export default function Home() {
     }).format(centavos / 100);
   };
 
+  // Compressão de imagem para mobile (evita upload 8MB em 4G)
+  const compressImage = (file: File, maxWidth = 1600, quality = 0.7): Promise<File> => {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/') || file.size < 300 * 1024) return resolve(file);
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            URL.revokeObjectURL(url);
+            if (!blob) return resolve(file);
+            const compressed = new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
+            resolve(compressed);
+          },
+          'image/jpeg',
+          quality,
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      };
+      img.src = url;
+    });
+  };
+
   // Envio de nova compra manual/confirmada
   const handleSaveCompra = async (compraData: any, itens: PurchaseItem[], pagamentos: Payment[], entregas: any[] = []) => {
     if (perfil === 'visualizador') {
@@ -463,7 +499,9 @@ export default function Home() {
   };
 
   const processarArquivosOcr = async (files: File[]) => {
-    const novosJobs = files.map(file => ({
+    // Compressão para mobile (economiza dados e evita timeout 4G)
+    const compressedFiles = await Promise.all(files.map((f) => compressImage(f).catch(() => f)));
+    const novosJobs = compressedFiles.map((file) => ({
       id: `job_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       nome: file.name || 'imagem_clipboard.png',
       progresso: 10,
@@ -472,7 +510,7 @@ export default function Home() {
       status: 'uploading' as const,
     }));
 
-    setOcrFila(prev => [...prev, ...novosJobs]);
+    setOcrFila((prev) => [...prev, ...novosJobs]);
 
     for (const job of novosJobs) {
       // Progresso real do upload/OCR
@@ -1841,13 +1879,32 @@ export default function Home() {
                   className="hidden"
                   onChange={handleFileChange}
                   multiple
+                  accept="image/*"
                 />
-                <label
-                  htmlFor="file-upload"
-                  className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs transition-all shadow cursor-pointer block"
-                >
-                  Selecionar Imagem do Computador
-                </label>
+                <input
+                  type="file"
+                  id="camera-upload"
+                  className="hidden"
+                  onChange={handleFileChange}
+                  accept="image/*"
+                  capture="environment"
+                />
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <label
+                    htmlFor="camera-upload"
+                    className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-6 py-3 rounded-xl text-sm transition-all shadow cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98]"
+                  >
+                    <ScanQrCode className="w-4 h-4" />
+                    Tirar Foto
+                  </label>
+                  <label
+                    htmlFor="file-upload"
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-6 py-3 rounded-xl text-sm transition-all shadow cursor-pointer flex items-center justify-center gap-2 border border-slate-700 active:scale-[0.98]"
+                  >
+                    <UploadCloud className="w-4 h-4" />
+                    Escolher da Galeria
+                  </label>
+                </div>
               </div>
 
               {/* Fila de Processamento de OCR */}
@@ -2029,6 +2086,22 @@ export default function Home() {
         </div>
 
       </main>
+
+      {/* FAB Mobile - Lançar Compra via Câmera */}
+      <button
+        onClick={() => {
+          if (perfil !== 'admin') {
+            setPerfil('admin');
+            exibirNotificacao('Modo Admin ativado para lançar compra', 'info');
+          }
+          setAbaAtiva('ocr');
+          setTimeout(() => document.getElementById('camera-upload')?.click(), 150);
+        }}
+        className="fixed bottom-6 right-6 md:hidden z-30 w-14 h-14 rounded-full bg-gradient-to-br from-cyan-500 to-emerald-500 text-slate-950 shadow-xl flex items-center justify-center active:scale-95 transition-transform border border-white/20"
+        aria-label="Lançar compra com câmera"
+      >
+        <ScanQrCode className="w-6 h-6" />
+      </button>
 
     </div>
   );

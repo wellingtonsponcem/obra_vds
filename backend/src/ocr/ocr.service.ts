@@ -47,50 +47,84 @@ export class OcrService {
     });
 
     try {
-      const apiKey = await this.getGeminiApiKey();
-
-      if (!apiKey) {
-        await this.prisma.ocrJob.update({
-          where: { id: job.id },
-          data: {
-            status: 'erro',
-            jsonBruto: JSON.stringify({ erro: 'Chave GEMINI_API_KEY não configurada.' }),
-          },
-        });
-
-        throw new HttpException(
-          'Chave GEMINI_API_KEY não configurada. Cadastre a chave em config keys ou defina GEMINI_API_KEY no ambiente do backend.',
-          HttpStatus.SERVICE_UNAVAILABLE,
-        );
-      }
-
       const imageBuffer = await readFile(file.path);
-      const ai = new GoogleGenAI({ apiKey });
+      const base64 = imageBuffer.toString('base64');
       const prompt = this.buildPrompt();
+      let parsed: any;
+      let provider = 'groq';
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { text: prompt },
+      // Tenta Groq primeiro (rápido, barato), fallback para Gemini
+      const groqKey = await this.getGroqApiKey();
+      if (groqKey) {
+        try {
+          this.logger.log('Tentando OCR via Groq Vision (llama-4-scout)...');
+          parsed = await this.callGroqVision(base64, file.mimetype, prompt);
+          provider = 'groq';
+        } catch (groqErr: any) {
+          this.logger.warn(`Groq falhou (${groqErr.message}), tentando Gemini fallback...`);
+          const geminiKey = await this.getGeminiApiKey();
+          if (!geminiKey) {
+            await this.prisma.ocrJob.update({
+              where: { id: job.id },
+              data: {
+                status: 'erro',
+                jsonBruto: JSON.stringify({ erro: 'Groq falhou e GEMINI_API_KEY não configurada.' }),
+              },
+            });
+            throw groqErr;
+          }
+          const ai = new GoogleGenAI({ apiKey: geminiKey });
+          const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [
               {
-                inlineData: {
-                  mimeType: file.mimetype,
-                  data: imageBuffer.toString('base64'),
-                },
+                role: 'user',
+                parts: [
+                  { text: prompt },
+                  { inlineData: { mimeType: file.mimetype, data: base64 } },
+                ],
               },
             ],
-          },
-        ],
-        config: {
-          responseMimeType: 'application/json',
-        },
-      });
+            config: { responseMimeType: 'application/json' },
+          });
+          parsed = JSON.parse(response.text || '{}');
+          provider = 'gemini';
+        }
+      } else {
+        // Sem Groq, vai direto Gemini
+        const geminiKey = await this.getGeminiApiKey();
+        if (!geminiKey) {
+          await this.prisma.ocrJob.update({
+            where: { id: job.id },
+            data: {
+              status: 'erro',
+              jsonBruto: JSON.stringify({ erro: 'Nenhuma chave OCR configurada (GROQ_API_KEY ou GEMINI_API_KEY).' }),
+            },
+          });
+          throw new HttpException(
+            'Nenhuma chave OCR configurada. Cadastre groq_api_key ou gemini_api_key.',
+            HttpStatus.SERVICE_UNAVAILABLE,
+          );
+        }
+        const ai = new GoogleGenAI({ apiKey: geminiKey });
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: prompt },
+                { inlineData: { mimeType: file.mimetype, data: base64 } },
+              ],
+            },
+          ],
+          config: { responseMimeType: 'application/json' },
+        });
+        parsed = JSON.parse(response.text || '{}');
+        provider = 'gemini';
+      }
 
-      const rawText = response.text || '{}';
-      const parsed = JSON.parse(rawText);
+      this.logger.log(`OCR provider usado: ${provider}`);
       const jsonResult = this.normalizeOcrData(parsed);
       const validation = this.validatePurchaseEvidence(jsonResult);
 
@@ -186,6 +220,67 @@ export class OcrService {
     });
 
     return (geminiConfig?.value || process.env.GEMINI_API_KEY || '').trim();
+  }
+
+  private async getGroqApiKey() {
+    const groqConfig = await this.prisma.systemConfig.findUnique({
+      where: { key: 'groq_api_key' },
+    });
+
+    return (groqConfig?.value || process.env.GROQ_API_KEY || '').trim();
+  }
+
+  private async callGroqVision(
+    imageBase64: string,
+    mimeType: string,
+    prompt: string,
+  ): Promise<any> {
+    const apiKey = await this.getGroqApiKey();
+    if (!apiKey) {
+      throw new HttpException(
+        'Chave GROQ_API_KEY não configurada. Cadastre em config keys ou defina GROQ_API_KEY no ambiente.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    const dataUrl = `data:${mimeType};base64,${imageBase64}`;
+
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        temperature: 0,
+        max_tokens: 2048,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new HttpException(
+        `Groq Vision falhou: ${res.status} ${errText.substring(0, 400)}`,
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    const json = await res.json();
+    const content: string = json.choices?.[0]?.message?.content || '{}';
+    // Groq pode envolver JSON em markdown, extrair
+    const cleaned = content.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+    return JSON.parse(cleaned);
   }
 
   private buildPrompt() {
@@ -368,7 +463,7 @@ Regras:
 
       return {
         ...item,
-        vinculoCatalogoId: maiorSimilaridade > 0.35 ? melhorMatchId : null,
+        vinculoCatalogoId: maiorSimilaridade > 0.60 ? melhorMatchId : null,
         similaridade: maiorSimilaridade,
       };
     });

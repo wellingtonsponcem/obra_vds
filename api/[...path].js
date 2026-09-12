@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs/promises';
+import formidable from 'formidable';
 import {
   PROJECT_ID,
   calcularJurosEfetivos,
@@ -11,6 +13,8 @@ import {
   query,
   sendError,
   transaction,
+  normalizeString,
+  calcularSimilaridade,
 } from './db.js';
 
 export const config = {
@@ -55,9 +59,7 @@ export default async function handler(req, res) {
     }
 
     if (path[0] === 'ocr' && path[1] === 'parse') {
-      return jsonResponse(res, 501, {
-        message: 'OCR ainda não está disponível nesta versão estática. Use o backend separado ou implemente uma função serverless específica.',
-      });
+      return handleOcrParse(req, res);
     }
 
     return jsonResponse(res, 404, { message: 'Rota não encontrada.' });
@@ -666,6 +668,255 @@ async function handleConfig(req, res, path) {
   }
 
   return jsonResponse(res, 405, { message: 'Método não permitido.' });
+}
+
+async function handleOcrParse(req, res) {
+  if (req.method !== 'POST') return jsonResponse(res, 405, { message: 'Método não permitido, use POST.' });
+  let base64 = null;
+  let mimeType = null;
+  let originalName = null;
+  let fileSize = 0;
+  const contentType = req.headers['content-type'] || '';
+  try {
+    if (contentType.includes('application/json')) {
+      const body = await parseJson(req);
+      base64 = body.imageBase64 || body.base64 || body.image;
+      mimeType = body.mimeType || body.mimetype || 'image/jpeg';
+      originalName = body.filename || body.nome || 'mobile.jpg';
+      fileSize = body.tamanhoBytes || 0;
+      if (!base64) return jsonResponse(res, 400, { message: 'imageBase64 é obrigatório.' });
+      if (base64.includes(',')) base64 = base64.split(',')[1];
+    } else {
+      const form = formidable({ multiples: false, maxFileSize: 10 * 1024 * 1024, keepExtensions: true });
+      const [fields, files] = await new Promise((resolve, reject) => {
+        form.parse(req, (err, fields, files) => {
+          if (err) reject(err);
+          else resolve([fields, files]);
+        });
+      });
+      if (fields && (fields.imageBase64 || fields.base64)) {
+        const v = Array.isArray(fields.imageBase64) ? fields.imageBase64[0] : fields.imageBase64 || fields.base64;
+        base64 = v;
+        mimeType = Array.isArray(fields.mimeType) ? fields.mimeType[0] : fields.mimeType || 'image/jpeg';
+        originalName = 'mobile.jpg';
+        if (base64 && base64.includes(',')) base64 = String(base64).split(',')[1];
+      } else {
+        let file = files.file || files.image || files.photo || files.upload;
+        if (Array.isArray(file)) file = file[0];
+        if (!file) return jsonResponse(res, 400, { message: 'Arquivo file é obrigatório (multipart file).' });
+        mimeType = file.mimetype || file.mimeType || 'image/jpeg';
+        originalName = file.originalFilename || file.newFilename || 'upload.jpg';
+        fileSize = file.size || 0;
+        const buffer = await fs.readFile(file.filepath);
+        base64 = buffer.toString('base64');
+        await fs.unlink(file.filepath).catch(() => {});
+      }
+    }
+    if (!mimeType || !String(mimeType).startsWith('image/')) {
+      return jsonResponse(res, 400, { message: 'Apenas imagens são aceitas.' });
+    }
+  } catch (e) {
+    return jsonResponse(res, 400, { message: 'Falha ao processar upload: ' + (e.message || String(e)) });
+  }
+
+  const jobId = `job_${randomUUID()}`;
+  try {
+    await query(`INSERT INTO ocr_job (id, status, imagem_url) VALUES ($1, $2, $3)`, [jobId, 'processando', `data:${mimeType};base64,${base64.substring(0, 60)}...`]);
+    await query(`INSERT INTO attachment (id, ocr_job_id, nome, url, tipo_mime, tamanho_bytes) VALUES ($1, $2, $3, $4, $5, $6)`, [`anx_${randomUUID()}`, jobId, originalName, `data:${mimeType};base64,...`, mimeType, fileSize]);
+  } catch {}
+
+  try {
+    const prompt = buildPromptOcr();
+    let parsed;
+    let provider = 'groq';
+    const groqKey = await getGroqApiKeyVercel();
+    if (groqKey) {
+      try {
+        parsed = await callGroqVisionVercel(base64, mimeType, prompt, groqKey);
+      } catch (groqErr) {
+        const geminiKey = await getGeminiApiKeyVercel();
+        if (!geminiKey) throw groqErr;
+        parsed = await callGeminiVisionVercel(base64, mimeType, prompt, geminiKey);
+        provider = 'gemini';
+      }
+    } else {
+      const geminiKey = await getGeminiApiKeyVercel();
+      if (!geminiKey) return jsonResponse(res, 503, { message: 'Nenhuma chave OCR configurada (GROQ_API_KEY ou GEMINI_API_KEY).' });
+      parsed = await callGeminiVisionVercel(base64, mimeType, prompt, geminiKey);
+      provider = 'gemini';
+    }
+    const jsonResult = normalizeOcrDataVercel(parsed);
+    const validation = validatePurchaseEvidenceVercel(jsonResult);
+    if (!validation.ok) {
+      await query(`UPDATE ocr_job SET status = $1, json_bruto = $2, updated_at = now() WHERE id = $3`, ['erro', JSON.stringify({ ...jsonResult, erro: validation.message }), jobId]).catch(()=>{});
+      return jsonResponse(res, 422, { message: validation.message, data: jsonResult });
+    }
+    const itensComVinculo = await linkCatalogItemsVercel(jsonResult.itens || []);
+    jsonResult.itens = itensComVinculo;
+    jsonResult.alertas = [...(jsonResult.alertas || []), ...validation.alertas];
+    await query(`UPDATE ocr_job SET status = $1, json_bruto = $2, updated_at = now() WHERE id = $3`, ['sucesso', JSON.stringify(jsonResult), jobId]).catch(()=>{});
+    await query(`INSERT INTO audit_log (id, usuario, acao, detalhes) VALUES ($1, $2, $3, $4)`, [`aud_${randomUUID()}`, 'sistema', 'OCR_PROCESSAR', JSON.stringify({ jobId, arquivo: originalName, fornecedor: jsonResult.fornecedor, total: jsonResult.resumo.total, provider })]).catch(()=>{});
+    return jsonResponse(res, 200, { jobId, status: 'sucesso', data: jsonResult, provider, attachment: { nome: originalName, tipoMime: mimeType, tamanhoBytes: fileSize } });
+  } catch (error) {
+    await query(`UPDATE ocr_job SET status = $1, json_bruto = $2, updated_at = now() WHERE id = $3`, ['erro', JSON.stringify({ erro: error.message || String(error) }), jobId]).catch(()=>{});
+    return sendError(res, error);
+  }
+}
+
+async function getGroqApiKeyVercel() {
+  try {
+    const r = await query(`SELECT value FROM system_config WHERE key = $1`, ['groq_api_key']);
+    if (r.rowCount > 0 && r.rows[0].value) return String(r.rows[0].value).trim();
+  } catch {}
+  return String(process.env.GROQ_API_KEY || '').trim();
+}
+async function getGeminiApiKeyVercel() {
+  try {
+    const r = await query(`SELECT value FROM system_config WHERE key = $1`, ['gemini_api_key']);
+    if (r.rowCount > 0 && r.rows[0].value) return String(r.rows[0].value).trim();
+  } catch {}
+  return String(process.env.GEMINI_API_KEY || '').trim();
+}
+async function callGroqVisionVercel(base64, mimeType, prompt, apiKey) {
+  const dataUrl = `data:${mimeType};base64,${base64}`;
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      temperature: 0,
+      max_tokens: 2048,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
+    }),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw Object.assign(new Error(`Groq Vision falhou: ${res.status} ${t.substring(0, 400)}`), { status: 502 });
+  }
+  const j = await res.json();
+  const content = j.choices?.[0]?.message?.content || '{}';
+  const cleaned = String(content).trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+  return JSON.parse(cleaned);
+}
+async function callGeminiVisionVercel(base64, mimeType, prompt, apiKey) {
+  const { GoogleGenAI } = await import('@google/genai');
+  const ai = new GoogleGenAI({ apiKey });
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType, data: base64 } }] }],
+    config: { responseMimeType: 'application/json' },
+  });
+  return JSON.parse(response.text || '{}');
+}
+function buildPromptOcr() {
+  return `
+Você é um extrator estrito de dados de compras para prestação de contas de obra.
+Analise a imagem e extraia somente informações visíveis. Não invente dados.
+Se a imagem não parecer um comprovante, nota, boleto, checkout, pedido, recibo ou confirmação de compra, retorne:
+{
+  "is_compra": false,
+  "motivo_recusa": "Imagem não parece ser uma compra ou comprovante.",
+  "texto_bruto": "",
+  "alertas": ["Imagem rejeitada: sem evidência de compra."]
+}
+Se for compra, retorne JSON válido com esta estrutura:
+{
+  "is_compra": true,
+  "fornecedor": "",
+  "tipo_documento": "",
+  "comprador": { "nome": "", "cpf": "" },
+  "entrega": { "endereco": "", "descricao": "", "previsoes": [] },
+  "pagamento": {
+    "metodo": "pix|cartao_credito|cartao_debito|boleto|dinheiro|transferencia",
+    "cartao": "",
+    "final_cartao": "",
+    "parcelas": null,
+    "valor_parcela": null,
+    "juros": null,
+    "sem_juros": null,
+    "texto_pagamento_bruto": ""
+  },
+  "resumo": {
+    "quantidade_itens": null,
+    "valor_produtos": null,
+    "desconto": null,
+    "frete": null,
+    "subtotal": null,
+    "total": null,
+    "economia": null
+  },
+  "itens": [
+    { "nome": "", "quantidade": null, "valor_unitario": null, "valor_total": null }
+  ],
+  "observacoes": [],
+  "texto_bruto": "",
+  "confianca": { "fornecedor": 0, "pagamento": 0, "total": 0, "itens": 0 },
+  "alertas": []
+}
+Regras:
+- Valores monetários decimais em BRL, ponto decimal. Ex: 123.45.
+- Se houver ambiguidade, use null e registre em alertas.
+- Se houver mais de uma opção de parcelamento, não escolha uma; registre em alertas.
+- Só preencha fornecedor, total e itens se houver evidência clara.
+`;
+}
+function normalizeOcrDataVercel(data) {
+  const pagamentoMetodo = normalizePaymentMethodVercel(data.pagamento?.metodo || data.pagamento?.formaPagamento || '');
+  const itens = Array.isArray(data.itens) ? data.itens : [];
+  const previsoes = Array.isArray(data.entrega?.previsoes) ? data.entrega.previsoes : [];
+  const alertas = Array.isArray(data.alertas) ? data.alertas : [];
+  const observacoes = Array.isArray(data.observacoes) ? data.observacoes : [];
+  return {
+    is_compra: data.is_compra === true,
+    motivo_recusa: cleanTextVercel(data.motivo_recusa || ''),
+    fornecedor: cleanTextVercel(data.fornecedor),
+    tipo_documento: cleanTextVercel(data.tipo_documento),
+    comprador: { nome: cleanTextVercel(data.comprador?.nome), cpf: cleanTextVercel(data.comprador?.cpf) },
+    entrega: { endereco: cleanTextVercel(data.entrega?.endereco), descricao: cleanTextVercel(data.entrega?.descricao), previsoes: previsoes.map((p) => ({ codigoEnvio: p.codigoEnvio || p.codigo_envio || null, status: cleanTextVercel(p.status), prazo: cleanTextVercel(p.prazo || p.descricao) })) },
+    pagamento: { metodo: pagamentoMetodo, cartao: cleanTextVercel(data.pagamento?.cartao), final_cartao: cleanTextVercel(data.pagamento?.final_cartao || data.pagamento?.finalCartao), parcelas: toNullableNumberVercel(data.pagamento?.parcelas), valor_parcela: toNullableDecimalVercel(data.pagamento?.valor_parcela ?? data.pagamento?.valorParcela), juros: toNullableDecimalVercel(data.pagamento?.juros), sem_juros: toNullableBooleanVercel(data.pagamento?.sem_juros ?? data.pagamento?.semJuros), texto_pagamento_bruto: cleanTextVercel(data.pagamento?.texto_pagamento_bruto || data.pagamento?.textoPagamentoBruto) },
+    resumo: { quantidade_itens: toNullableNumberVercel(data.resumo?.quantidade_itens ?? data.resumo?.quantidadeItens ?? itens.length), valor_produtos: toNullableDecimalVercel(data.resumo?.valor_produtos ?? data.resumo?.valorProdutos), desconto: toNullableDecimalVercel(data.resumo?.desconto) || 0, frete: toNullableDecimalVercel(data.resumo?.frete) || 0, subtotal: toNullableDecimalVercel(data.resumo?.subtotal), total: toNullableDecimalVercel(data.resumo?.total), economia: toNullableDecimalVercel(data.resumo?.economia) || 0 },
+    itens: itens.map((item) => ({ nome: cleanTextVercel(item.nome), quantidade: toNullableNumberVercel(item.quantidade) || 1, valor_unitario: toNullableDecimalVercel(item.valor_unitario ?? item.valorUnitario), valor_total: toNullableDecimalVercel(item.valor_total ?? item.valorTotal) })),
+    observacoes, texto_bruto: cleanTextVercel(data.texto_bruto || data.textoBruto), confianca: { fornecedor: toConfidenceVercel(data.confianca?.fornecedor), pagamento: toConfidenceVercel(data.confianca?.pagamento), total: toConfidenceVercel(data.confianca?.total), itens: toConfidenceVercel(data.confianca?.itens) }, alertas,
+  };
+}
+function validatePurchaseEvidenceVercel(data) {
+  const alertas = [];
+  const hasFornecedor = !!data.fornecedor;
+  const hasTotal = typeof data.resumo?.total === 'number';
+  const hasItems = Array.isArray(data.itens) && data.itens.length > 0;
+  if (data.is_compra === false) return { ok: false, message: data.motivo_recusa || 'Imagem não parece ser uma compra.', alertas };
+  if (!hasFornecedor && !hasTotal && !hasItems) return { ok: false, message: 'Não foi possível identificar fornecedor, total ou itens.', alertas: ['Imagem rejeitada: sem evidência de compra.'] };
+  if (!hasFornecedor) alertas.push('Fornecedor não identificado com clareza. Revise antes de salvar.');
+  if (!hasTotal) alertas.push('Valor total não identificado com clareza. Revise antes de salvar.');
+  if (!hasItems) alertas.push('Nenhum item individual identificado. Pode salvar como item avulso se total estiver correto.');
+  if (data.pagamento?.parcelas === null && data.pagamento?.texto_pagamento_bruto?.includes('|')) alertas.push('Ambiguidade no parcelamento detectada. Revise antes de salvar.');
+  return { ok: true, message: '', alertas };
+}
+async function linkCatalogItemsVercel(itens) {
+  const catalogo = await query(`SELECT id, nome FROM catalog_item WHERE project_id = $1`, [PROJECT_ID]).then(r=>r.rows).catch(()=>[]);
+  return itens.map((item) => {
+    let melhorMatchId = null;
+    let maiorSimilaridade = 0;
+    for (const cat of catalogo) {
+      const sim = calcularSimilaridade(item.nome || '', cat.nome);
+      if (sim > maiorSimilaridade) { maiorSimilaridade = sim; melhorMatchId = cat.id; }
+    }
+    // Threshold 0.60 para nomes que mudam; 0.35 muito permissivo, 0.60 equilibra. Se produto mudou nome mas mantém substring, cairá em 0.5 boost e passa.
+    return { ...item, vinculoCatalogoId: maiorSimilaridade > 0.60 ? melhorMatchId : null, similaridade: maiorSimilaridade };
+  });
+}
+function cleanTextVercel(v) { if (v === null || v === undefined) return ''; return String(v).trim(); }
+function toNullableNumberVercel(v) { if (v === null || v === undefined || v === '') return null; const p = Number(v); return Number.isFinite(p) ? p : null; }
+function toNullableDecimalVercel(v) { if (v === null || v === undefined || v === '') return null; const raw = String(v).replace(/[^\d,-]/g, ''); const norm = raw.includes(',') && !raw.includes('.') ? raw.replace(',', '.') : raw.replace(/,/g, ''); const p = Number(norm); return Number.isFinite(p) ? p : null; }
+function toNullableBooleanVercel(v) { if (typeof v === 'boolean') return v; if (v === null || v === undefined || v === '') return null; return ['true','sim','s','1'].includes(String(v).toLowerCase()); }
+function toConfidenceVercel(v) { const p = toNullableNumberVercel(v); if (p === null) return 0; return Math.max(0, Math.min(1, p > 1 ? p/100 : p)); }
+function normalizePaymentMethodVercel(value) {
+  const normalized = cleanTextVercel(value).toLowerCase();
+  if (['pix','boleto','dinheiro','transferencia','cartao_debito','cartao_credito'].includes(normalized)) return normalized;
+  if (normalized.includes('crédito') || normalized.includes('credito') || normalized.includes('credit card') || normalized.includes('cartão')) return 'cartao_credito';
+  if (normalized.includes('débito') || normalized.includes('debito') || normalized.includes('debit card')) return 'cartao_debito';
+  return 'pix';
 }
 
 async function getCards() {
