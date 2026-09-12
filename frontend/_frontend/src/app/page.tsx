@@ -27,6 +27,8 @@ import {
   Trash2,
   HelpCircle,
   Info,
+  Menu,
+  X,
 } from 'lucide-react';
 
 // Interfaces de Tipo
@@ -174,6 +176,9 @@ export default function Home() {
   const [modoVisualizacaoCompra, setModoVisualizacaoCompra] = useState<Purchase | null>(null);
   const [notificacao, setNotificacao] = useState<{ texto: string; tipo: 'sucesso' | 'erro' | 'info' } | null>(null);
 
+  // UI mobile
+  const [menuAberto, setMenuAberto] = useState(false);
+
   // Estados do Catálogo Inteligente
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'todos' | 'pendente' | 'comprado'>('todos');
@@ -268,6 +273,11 @@ export default function Home() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Fecha drawer mobile ao trocar de aba
+  useEffect(() => {
+    setMenuAberto(false);
+  }, [abaAtiva]);
 
   const exibirNotificacao = (texto: string, tipo: 'sucesso' | 'erro' | 'info') => {
     setNotificacao({ texto, tipo });
@@ -633,16 +643,28 @@ export default function Home() {
         </div>
       )}
 
+      {/* Backdrop mobile */}
+      {menuAberto && (
+        <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setMenuAberto(false)} aria-hidden="true" />
+      )}
+
       {/* Sidebar de Navegação Premium */}
-      <aside className="w-full md:w-64 bg-slate-950 border-r border-slate-800 flex flex-col justify-between shrink-0">
+      <aside className={`fixed inset-y-0 left-0 z-40 w-72 bg-slate-950 border-r border-slate-800 flex flex-col justify-between shrink-0 overflow-y-auto transform transition-transform duration-300 md:static md:w-64 md:translate-x-0 ${menuAberto ? 'translate-x-0' : '-translate-x-full'}`}>
         <div>
           {/* Logo / Título */}
           <div className="p-6 border-b border-slate-800 flex items-center gap-3 bg-gradient-to-r from-slate-950 to-slate-900">
             <ScanQrCode className="w-8 h-8 text-cyan-400 animate-pulse" />
-            <div>
+            <div className="flex-1">
               <h1 className="font-bold text-lg leading-tight tracking-wide text-white">Obra VDS</h1>
               <p className="text-xs text-slate-400">Prestação de Contas</p>
             </div>
+            <button
+              onClick={() => setMenuAberto(false)}
+              className="md:hidden p-2 -mr-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              aria-label="Fechar menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
           {/* Perfis de Usuário */}
@@ -763,9 +785,16 @@ export default function Home() {
         )}
 
         {/* Top Header */}
-        <header className="h-16 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md px-6 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <h2 className="text-base font-bold text-white capitalize">{abaAtiva === 'ocr' ? 'OCR Inteligente Gemini' : abaAtiva === 'prestacao' ? 'Prestação de Contas' : abaAtiva}</h2>
+        <header className="sticky top-0 z-20 h-16 border-b border-slate-800 bg-slate-950/90 backdrop-blur-md px-4 md:px-6 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => setMenuAberto(true)}
+              className="md:hidden p-2 -ml-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800"
+              aria-label="Abrir menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <h2 className="text-sm md:text-base font-bold text-white capitalize truncate">{abaAtiva === 'ocr' ? 'OCR Inteligente Gemini' : abaAtiva === 'prestacao' ? 'Prestação de Contas' : abaAtiva}</h2>
             {erroApi && (
               <span className="text-[10px] bg-rose-950 text-rose-300 px-2 py-0.5 rounded-full border border-rose-800 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" />
@@ -792,7 +821,7 @@ export default function Home() {
         </header>
 
         {/* Área Principal de Abas */}
-        <div className="p-6 space-y-6 max-w-7xl w-full mx-auto flex-1">
+        <div className="p-4 md:p-6 space-y-6 max-w-7xl w-full mx-auto flex-1 pb-8 md:pb-6">
           
           {/* TAB 1: DASHBOARD — simplificado para visualizador/financiador */}
           {abaAtiva === 'dashboard' && !modoVisualizacaoCompra && perfil === 'visualizador' && (
@@ -810,7 +839,7 @@ export default function Home() {
             <div className="space-y-6">
               
               {/* Cards de Métricas Finanças */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 
                 <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 flex flex-col justify-between hover:border-slate-700 transition-all hover:scale-[1.01] shadow-lg">
                   <div className="flex items-center justify-between text-slate-500 mb-2">
@@ -965,7 +994,7 @@ export default function Home() {
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider">Últimas Compras Lançadas</h3>
                   <button onClick={() => setAbaAtiva('prestacao')} className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1">Ver Histórico Completo <ArrowRight className="w-3 h-3" /></button>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="border-b border-slate-800 text-slate-500 font-semibold">
@@ -1033,6 +1062,47 @@ export default function Home() {
                       )}
                     </tbody>
                   </table>
+                </div>
+                {/* Mobile cards - visível só no mobile */}
+                <div className="md:hidden space-y-3">
+                  {purchases.length === 0 ? (
+                    <p className="py-6 text-center text-slate-500 text-sm">Nenhuma compra cadastrada no banco.</p>
+                  ) : (
+                    purchases.slice(0, 5).map((p) => (
+                      <div key={p.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-white text-sm truncate">{p.fornecedor}</p>
+                            <p className="text-[11px] text-slate-500 truncate">{p.id} • {p.origem === 'ocr_checkout' ? 'OCR' : 'Manual'}</p>
+                          </div>
+                          <span className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-bold uppercase border ${p.statusCompra === 'confirmado' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : p.statusCompra === 'revisar' ? 'bg-amber-950 text-amber-400 border-amber-800' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>{p.statusCompra}</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-slate-950 rounded-lg px-3 py-2.5 border border-slate-800">
+                          <span className="text-xs text-slate-400">Total</span>
+                          <span className="font-extrabold text-white">{formatarMoeda(p.totalPago)}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-slate-950 rounded-lg p-2.5 border border-slate-800">
+                            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wide">Cartão</p>
+                            <p className="text-white font-semibold mt-1 flex items-center gap-1.5 text-xs">
+                              <CreditCard className="w-3 h-3 text-cyan-400 shrink-0" />
+                              <span className="truncate">{p.pagamentos[0]?.card ? `${p.pagamentos[0].card.nome} **** ${p.pagamentos[0].card.finalCartao}` : '—'}</span>
+                            </p>
+                            <p className="text-[11px] text-slate-400 uppercase mt-0.5">{p.pagamentos[0]?.formaPagamento.replace('_', ' ') || 'Pix'}</p>
+                          </div>
+                          <div className="bg-slate-950 rounded-lg p-2.5 border border-slate-800">
+                            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wide">Parcelas</p>
+                            <p className="text-white font-bold mt-1 text-xs">{p.pagamentos[0]?.parcelas ? `${p.pagamentos[0].parcelas}x ${formatarMoeda(p.pagamentos[0].valorParcela ?? 0)}` : 'à vista'}</p>
+                            <p className={`text-[10px] ${p.pagamentos[0]?.comJuros ? 'text-amber-400' : 'text-emerald-400'}`}>{p.pagamentos[0]?.parcelas ? (p.pagamentos[0].comJuros ? 'c/ juros' : 's/ juros') : ''}{p.pagamentos[0]?.juros ? ` (+${formatarMoeda(p.pagamentos[0].juros)})` : ''}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => setModoVisualizacaoCompra(p)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold py-3 rounded-lg text-sm border border-slate-700 active:scale-[0.98] transition-transform">Revisar</button>
+                          {perfil === 'admin' && <button onClick={() => handleDeleteCompra(p.id)} className="px-5 bg-rose-950/60 hover:bg-rose-950 text-rose-300 font-bold py-3 rounded-lg text-sm border border-rose-900 active:scale-[0.98] transition-transform">Excluir</button>}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
