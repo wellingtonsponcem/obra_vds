@@ -254,8 +254,7 @@ export class OcrService {
       body: JSON.stringify({
         model: 'qwen/qwen3.6-27b',
         temperature: 0,
-        max_tokens: 2048,
-        response_format: { type: 'json_object' },
+        max_tokens: 1024,
         messages: [
           {
             role: 'user',
