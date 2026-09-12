@@ -33,3 +33,12 @@ Ao acessar `/api/catalog`, o servidor retornava um "Erro 500 ao chamar /api/cata
 ### Solução
 1. **Mensagens Detalhadas de Erro (`api/db.js`)**:
    - Atualizada a função `sendError` para expor a mensagem (`error.message`) e a stack trace (`error.stack`) no JSON de resposta. Isso permite visualizar a causa real do erro diretamente pelo toast no frontend ou pelo inspetor de rede do navegador.
+
+## 12/09/2026 - Visualização Simplificada + Conciliação Mercado Livre
+
+### Problema
+Dashboard denso para financiador e compras do Mercado Livre (`compras-print/` 13 PNGs, 3 pedidos) divergentes da lista — `seed.ts` só tinha `cmp_0001`.
+
+### Solução
+1. **Dashboard Simplificado (`frontend/_frontend/src/app/components/DashboardSimples.tsx`)**: 3 KPIs (Orçado/Já investido/Falta) + barra única + últimos 3 cards, auto para `perfil=visualizador` (`page.tsx:4,672,796`).
+2. **Conciliação obra/ferramenta**: 8 novos `CatalogItem`s (`mat_0009`..`0016`, Fogão como `Diversos`) + 2 `Purchase`s `cmp_0002` (`2000013652145111`) e `cmp_0003` (`2000013676528193`) com rateio proporcional frete/desconto; 5 não-obra descartados (Cilindro, Corretor, Cinto, Capacete, Case). `seed.ts:394` + `scripts/build-static.js` atualizado para Next `out`→`public`.

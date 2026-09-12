@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "npx vercel dev",
-    "build": "node scripts/build-static.js",
+    "build": "npm run build --prefix frontend/_frontend && node scripts/build-static.js",
+    "build:next": "npm run build --prefix frontend/_frontend",
+    "build:static": "node scripts/build-static.js",
     "db:init": "node scripts/init-db.js"
   },
   "dependencies": {

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import DashboardSimples from './components/DashboardSimples';
 import {
   LayoutDashboard,
   FolderKanban,
@@ -133,8 +134,9 @@ interface DashboardSummary {
   }[];
 }
 
-// Configuração da API Backend
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+// Configuração da API Backend — usa Vercel /api em produção, fallback localhost em dev
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '/api' : 'http://localhost:3001');
 
 export default function Home() {
   // Estado Global do Perfil
@@ -688,24 +690,28 @@ export default function Home() {
               <FolderKanban className="w-4 h-4" />
               Catálogo de Materiais
             </button>
-            <button
-              onClick={() => { setAbaAtiva('lancamentos'); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
-                abaAtiva === 'lancamentos' ? 'bg-slate-800/80 text-white border-l-4 border-cyan-400' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-100'
-              }`}
-            >
-              <PlusCircle className="w-4 h-4" />
-              Lançar Compras
-            </button>
-            <button
-              onClick={() => { setAbaAtiva('ocr'); setModoVisualizacaoCompra(null); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
-                abaAtiva === 'ocr' ? 'bg-slate-800/80 text-white border-l-4 border-cyan-400' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-100'
-              }`}
-            >
-              <ScanQrCode className="w-4 h-4" />
-              Importar com OCR
-            </button>
+            {perfil === 'admin' && (
+              <button
+                onClick={() => { setAbaAtiva('lancamentos'); }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
+                  abaAtiva === 'lancamentos' ? 'bg-slate-800/80 text-white border-l-4 border-cyan-400' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-100'
+                }`}
+              >
+                <PlusCircle className="w-4 h-4" />
+                Lançar Compras
+              </button>
+            )}
+            {perfil === 'admin' && (
+              <button
+                onClick={() => { setAbaAtiva('ocr'); setModoVisualizacaoCompra(null); }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
+                  abaAtiva === 'ocr' ? 'bg-slate-800/80 text-white border-l-4 border-cyan-400' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-100'
+                }`}
+              >
+                <ScanQrCode className="w-4 h-4" />
+                Importar com OCR
+              </button>
+            )}
             <button
               onClick={() => { setAbaAtiva('prestacao'); setModoVisualizacaoCompra(null); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
@@ -715,15 +721,17 @@ export default function Home() {
               <FileSpreadsheet className="w-4 h-4" />
               Prestação de Contas
             </button>
-            <button
-              onClick={() => { setAbaAtiva('configuracoes'); setModoVisualizacaoCompra(null); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
-                abaAtiva === 'configuracoes' ? 'bg-slate-800/80 text-white border-l-4 border-cyan-400' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-100'
-              }`}
-            >
-              <Settings className="w-4 h-4" />
-              Configurações
-            </button>
+            {perfil === 'admin' && (
+              <button
+                onClick={() => { setAbaAtiva('configuracoes'); setModoVisualizacaoCompra(null); }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
+                  abaAtiva === 'configuracoes' ? 'bg-slate-800/80 text-white border-l-4 border-cyan-400' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-100'
+                }`}
+              >
+                <Settings className="w-4 h-4" />
+                Configurações
+              </button>
+            )}
           </nav>
         </div>
 
@@ -786,8 +794,19 @@ export default function Home() {
         {/* Área Principal de Abas */}
         <div className="p-6 space-y-6 max-w-7xl w-full mx-auto flex-1">
           
-          {/* TAB 1: DASHBOARD */}
-          {abaAtiva === 'dashboard' && !modoVisualizacaoCompra && (
+          {/* TAB 1: DASHBOARD — simplificado para visualizador/financiador */}
+          {abaAtiva === 'dashboard' && !modoVisualizacaoCompra && perfil === 'visualizador' && (
+            <DashboardSimples
+              summary={summary}
+              purchases={purchases}
+              onVerHistorico={() => setAbaAtiva('prestacao')}
+              onVerCompra={(id) => {
+                const p = purchases.find((x) => x.id === id);
+                if (p) setModoVisualizacaoCompra(p);
+              }}
+            />
+          )}
+          {abaAtiva === 'dashboard' && !modoVisualizacaoCompra && perfil !== 'visualizador' && (
             <div className="space-y-6">
               
               {/* Cards de Métricas Finanças */}

@@ -150,6 +150,119 @@ async function main() {
       fornecedorPlanejado: 'Leroy',
       origemPlanilha: 'Loja Física',
     },
+    // Itens faltantes extraídos de compras-print/ (pedidos 2000013652145111 e 2000013676528193) — filtrados obra/ferramenta + Fogão como Diversos
+    {
+      id: 'mat_0009',
+      nome: 'Jogo 10 Peças Bits Philips Ph2 E Fenda',
+      categoria: 'Ferramentas',
+      quantidadePlanejada: 1,
+      unidade: 'un',
+      precoOrcadoUnitario: 2737,
+      custoOrcadoTotal: 2737,
+      localCompraPlanejado: 'Online',
+      prioridade: 'Alta',
+      statusCatalogo: 'comprado',
+      fornecedorPlanejado: 'ML',
+      origemPlanilha: 'Mercado Livre - compras-print',
+    },
+    {
+      id: 'mat_0010',
+      nome: 'Trena Profissional Fita Métrica Fluor 5m',
+      categoria: 'Ferramentas',
+      quantidadePlanejada: 1,
+      unidade: 'un',
+      precoOrcadoUnitario: 2502,
+      custoOrcadoTotal: 2502,
+      localCompraPlanejado: 'Online',
+      prioridade: 'Alta',
+      statusCatalogo: 'comprado',
+      fornecedorPlanejado: 'ML',
+      origemPlanilha: 'Mercado Livre - compras-print',
+    },
+    {
+      id: 'mat_0011',
+      nome: 'Martelo Profissional Unha 450g Cabo Fibra',
+      categoria: 'Ferramentas',
+      quantidadePlanejada: 1,
+      unidade: 'un',
+      precoOrcadoUnitario: 5570,
+      custoOrcadoTotal: 5570,
+      localCompraPlanejado: 'Online',
+      prioridade: 'Alta',
+      statusCatalogo: 'comprado',
+      fornecedorPlanejado: 'ML',
+      origemPlanilha: 'Mercado Livre - compras-print',
+    },
+    {
+      id: 'mat_0012',
+      nome: 'Chave De Fenda Especial Para Eletrônica',
+      categoria: 'Ferramentas',
+      quantidadePlanejada: 1,
+      unidade: 'un',
+      precoOrcadoUnitario: 2103,
+      custoOrcadoTotal: 2103,
+      localCompraPlanejado: 'Online',
+      prioridade: 'Alta',
+      statusCatalogo: 'comprado',
+      fornecedorPlanejado: 'ML',
+      origemPlanilha: 'Mercado Livre - compras-print',
+    },
+    {
+      id: 'mat_0013',
+      nome: 'Máquina De Solda Inversora Mig Sem Gás Verde',
+      categoria: 'Ferramentas',
+      quantidadePlanejada: 1,
+      unidade: 'un',
+      precoOrcadoUnitario: 36999,
+      custoOrcadoTotal: 36999,
+      localCompraPlanejado: 'Online',
+      prioridade: 'Alta',
+      statusCatalogo: 'comprado',
+      fornecedorPlanejado: 'ML',
+      origemPlanilha: 'Mercado Livre - compras-print',
+    },
+    {
+      id: 'mat_0014',
+      nome: 'Fogão Cooktop Indução 1 Boca Painel Preto 127V',
+      categoria: 'Diversos',
+      quantidadePlanejada: 1,
+      unidade: 'un',
+      precoOrcadoUnitario: 11990,
+      custoOrcadoTotal: 11990,
+      localCompraPlanejado: 'Online',
+      prioridade: null,
+      statusCatalogo: 'comprado',
+      fornecedorPlanejado: 'ML',
+      origemPlanilha: 'Mercado Livre - compras-print',
+    },
+    {
+      id: 'mat_0015',
+      nome: 'Esquadro Combinado 12 Pol 300mm',
+      categoria: 'Ferramentas',
+      quantidadePlanejada: 1,
+      unidade: 'un',
+      precoOrcadoUnitario: 4290,
+      custoOrcadoTotal: 4290,
+      localCompraPlanejado: 'Online',
+      prioridade: 'Alta',
+      statusCatalogo: 'comprado',
+      fornecedorPlanejado: 'ML',
+      origemPlanilha: 'Mercado Livre - compras-print',
+    },
+    {
+      id: 'mat_0016',
+      nome: 'Kit 300 Parafusos Chipboard Philips',
+      categoria: 'Material',
+      quantidadePlanejada: 1,
+      unidade: 'kit',
+      precoOrcadoUnitario: 2803,
+      custoOrcadoTotal: 2803,
+      localCompraPlanejado: 'Online',
+      prioridade: 'Alta',
+      statusCatalogo: 'comprado',
+      fornecedorPlanejado: 'ML',
+      origemPlanilha: 'Mercado Livre - compras-print',
+    },
   ];
 
   for (const item of catalogMaterials) {
@@ -275,6 +388,135 @@ async function main() {
       valorParcela: 68819, // R$ 688,19 (5x)
       juros: 24004, // Exemplo de cálculo de juros (5 * 688,19 = 3440,95 + frete/diferença = juros efetivos)
       comJuros: true,
+    },
+  });
+
+  // 5. Criar compras faltantes de compras-print/ (rateio proporcional obra/ferramenta + Fogão Diversos, 5 não-obra descartados)
+  // cmp_0002 — pedido 2000013652145111 (22 jun) — 4 itens obra mantidos de 6
+  const purchase2 = await prisma.purchase.create({
+    data: {
+      id: 'cmp_0002',
+      projectId: project.id,
+      origem: 'ocr_checkout',
+      fornecedor: 'Mercado Livre',
+      statusCompra: 'confirmado',
+      statusEntrega: 'aguardando_entrega',
+      compradorNome: 'Wellington da Silva Faustino Poncem',
+      compradorCpf: '154.626.737-95',
+      enderecoEntrega: 'Rua Pedro Carlos De Souza 222',
+      // Rateio proporcional: valor mantido 12912c de 22025c total produtos → frete 2599, desconto 4653 rateados
+      subtotalProdutos: 12912, // soma dos 4 itens mantidos (2737+2502+5570+2103)
+      frete: 1523, // 2599 * 12912/22025 ≈ 1523
+      desconto: 2725, // (36.53+10.00)*100 * 12912/22025 ≈ 2725
+      totalPago: 11710, // 12912+1523-2725 = 11710 (R$117,10) — impostos 989 descartados com itens não-obra
+      observacao: 'Importado de compras-print/ pedido 2000013652145111 — 2 itens não-obra descartados (Cilindro, Corretor)',
+    },
+  });
+
+  for (const item of [
+    { nome: 'Jogo 10 Peças Bits Philips Ph2 E Fenda', quantidade: 1, valorUnitario: 2737, valorTotal: 2737, vinculoCatalogoId: 'mat_0009' },
+    { nome: 'Trena Profissional Fita Métrica Fluor 5m', quantidade: 1, valorUnitario: 2502, valorTotal: 2502, vinculoCatalogoId: 'mat_0010' },
+    { nome: 'Martelo Profissional Unha 450g Cabo Fibra', quantidade: 1, valorUnitario: 5570, valorTotal: 5570, vinculoCatalogoId: 'mat_0011' },
+    { nome: 'Chave De Fenda Especial Para Eletrônica', quantidade: 1, valorUnitario: 2103, valorTotal: 2103, vinculoCatalogoId: 'mat_0012' },
+  ]) {
+    await prisma.purchaseItem.create({ data: { ...item, purchaseId: purchase2.id } });
+  }
+
+  for (const delivery of [
+    { codigoEnvio: 1, status: 'FULL', prazo: 'Chegará entre 2-5 dias úteis (FULL)' },
+    { codigoEnvio: 2, status: 'FULL', prazo: 'Chegará entre 2-5 dias úteis (FULL)' },
+    { codigoEnvio: 3, status: 'FULL', prazo: 'Chegará entre 2-5 dias úteis (FULL)' },
+    { codigoEnvio: 4, status: 'FULL', prazo: 'Chegará entre 3-7 dias úteis' },
+  ]) {
+    await prisma.deliveryForecast.create({ data: { ...delivery, purchaseId: purchase2.id } });
+  }
+
+  await prisma.payment.create({
+    data: {
+      purchaseId: purchase2.id,
+      formaPagamento: 'cartao_credito',
+      cardId: card.id,
+      parcelas: 3,
+      valorParcela: 3903, // 11710/3 ≈ 3903
+      juros: 0,
+      comJuros: false,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      purchaseId: purchase2.id,
+      usuario: 'sistema',
+      acao: 'CRIAR',
+      detalhes: JSON.stringify({
+        mensagem: 'Importado de compras-print/ pedido 2000013652145111 — filtrado obra/ferramenta (4/6 itens)',
+        pedido: '2000013652145111',
+        itensRemovidos: ['Cilindro Compatível Brother', 'Corretor Postural'],
+      }),
+    },
+  });
+
+  // cmp_0003 — pedido 2000013676528193 (24 jun) — 4 mantidos de 7 (3 não-obra descartados)
+  const purchase3 = await prisma.purchase.create({
+    data: {
+      id: 'cmp_0003',
+      projectId: project.id,
+      origem: 'ocr_checkout',
+      fornecedor: 'Mercado Livre',
+      statusCompra: 'confirmado',
+      statusEntrega: 'aguardando_entrega',
+      compradorNome: 'Wellington da Silva Faustino Poncem',
+      compradorCpf: '154.626.737-95',
+      enderecoEntrega: 'Rua Pedro Carlos De Souza 222',
+      subtotalProdutos: 56082, // 36999+11990+4290+2803
+      frete: 0,
+      desconto: 11857, // 20644 * 56082/97548 ≈ 11857
+      totalPago: 44225, // 56082-11857 = 44225 (R$442,25)
+      observacao: 'Importado de compras-print/ pedido 2000013676528193 — 3 itens não-obra descartados (Cinto, Capacete, Case)',
+    },
+  });
+
+  for (const item of [
+    { nome: 'Máquina De Solda Inversora Mig Sem Gás Verde', quantidade: 1, valorUnitario: 36999, valorTotal: 36999, vinculoCatalogoId: 'mat_0013' },
+    { nome: 'Fogão Cooktop Indução 1 Boca Painel Preto 127V', quantidade: 1, valorUnitario: 11990, valorTotal: 11990, vinculoCatalogoId: 'mat_0014' },
+    { nome: 'Esquadro Combinado 12 Pol 300mm', quantidade: 1, valorUnitario: 4290, valorTotal: 4290, vinculoCatalogoId: 'mat_0015' },
+    { nome: 'Kit 300 Parafusos Chipboard Philips', quantidade: 1, valorUnitario: 2803, valorTotal: 2803, vinculoCatalogoId: 'mat_0016' },
+  ]) {
+    await prisma.purchaseItem.create({ data: { ...item, purchaseId: purchase3.id } });
+  }
+
+  for (const delivery of [
+    { codigoEnvio: 1, prazo: 'Chegará entre 5-10 dias úteis' },
+    { codigoEnvio: 2, status: 'FULL', prazo: 'Chegará entre 2-5 dias úteis (FULL)' },
+    { codigoEnvio: 3, status: 'FULL', prazo: 'Chegará entre 2-5 dias úteis (FULL)' },
+    { codigoEnvio: 4, prazo: 'Chegará entre 5-10 dias úteis' },
+  ]) {
+    await prisma.deliveryForecast.create({ data: { ...delivery, purchaseId: purchase3.id } });
+  }
+
+  await prisma.payment.create({
+    data: {
+      purchaseId: purchase3.id,
+      formaPagamento: 'cartao_credito',
+      cardId: card.id,
+      parcelas: 4,
+      valorParcela: 11056, // 44225/4 ≈ 11056
+      juros: 0,
+      comJuros: false,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      purchaseId: purchase3.id,
+      usuario: 'sistema',
+      acao: 'CRIAR',
+      detalhes: JSON.stringify({
+        mensagem: 'Importado de compras-print/ pedido 2000013676528193 — filtrado obra/ferramenta + Fogão Diversos (4/7 itens)',
+        pedido: '2000013676528193',
+        itensRemovidos: ['Cinto Multiuso Câmeras', 'Capacete Infantil', 'Case Lente Neoprene'],
+        categoriaDiversos: 'Fogão Cooktop Indução',
+      }),
     },
   });
 
