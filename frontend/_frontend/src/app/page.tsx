@@ -171,7 +171,7 @@ export default function Home() {
   const [erroApi, setErroApi] = useState<string | null>(null);
 
   // Estados específicos para formulários e OCR
-  const [ocrFila, setOcrFila] = useState<{ id: string; nome: string; progresso: number; previewUrl?: string; file?: File; status: 'uploading' | 'parsing' | 'ready' | 'error' }[]>([]);
+  const [ocrFila, setOcrFila] = useState<{ id: string; nome: string; progresso: number; previewUrl?: string; file?: File; status: 'uploading' | 'parsing' | 'ready' | 'error'; errorData?: any; jobId?: string }[]>([]);
   const [ocrRascunhoRevisao, setOcrRascunhoRevisao] = useState<any | null>(null);
   const [modoVisualizacaoCompra, setModoVisualizacaoCompra] = useState<Purchase | null>(null);
   const [notificacao, setNotificacao] = useState<{ texto: string; tipo: 'sucesso' | 'erro' | 'info' } | null>(null);
@@ -532,6 +532,11 @@ export default function Home() {
           abrirRevisaoOcr(result.data, job.previewUrl, result.jobId);
         } else {
           const errorData = await res.json().catch(() => ({}));
+          if (errorData.data && (errorData.data.fornecedor || errorData.data.resumo?.total || errorData.data.itens?.length)) {
+            setOcrFila((prev) => prev.map((j) => j.id === job.id ? { ...j, progresso: 100, status: 'error', errorData: errorData.data, jobId: errorData.jobId || job.id } : j));
+            exibirNotificacao((errorData.message || 'Imagem não parece ser compra') + ' — Você pode forçar como compra abaixo.', 'info');
+            continue;
+          }
           throw new Error(errorData.message || `Erro no servidor ao ler OCR: ${res.status} ${res.statusText}`);
         }
       } catch (err: any) {
@@ -1937,7 +1942,17 @@ export default function Home() {
                         {job.status === 'ready' ? (
                           <span className="text-emerald-400 font-bold bg-emerald-950/70 border border-emerald-900 px-2 py-0.5 rounded text-[10px]">CONCLUÍDO</span>
                         ) : job.status === 'error' ? (
-                          <span className="text-rose-400 font-bold bg-rose-950/70 border border-rose-900 px-2 py-0.5 rounded text-[10px]">ERRO</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-rose-400 font-bold bg-rose-950/70 border border-rose-900 px-2 py-0.5 rounded text-[10px]">ERRO</span>
+                            {job.errorData && (
+                              <button
+                                onClick={() => abrirRevisaoOcr(job.errorData, job.previewUrl, job.jobId)}
+                                className="text-[11px] bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-3 py-1.5 rounded-full transition-colors"
+                              >
+                                Forçar como compra
+                              </button>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-slate-400 animate-pulse font-semibold">Lendo...</span>
                         )}

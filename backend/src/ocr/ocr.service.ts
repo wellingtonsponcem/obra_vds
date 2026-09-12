@@ -297,10 +297,11 @@ export class OcrService {
 
   private buildPrompt() {
     return `
-Você é um extrator estrito de dados de compras para prestação de contas de obra.
+Você é um extrator de qualquer comprovante de compra (farmácia, mercado, obra, Mercado Livre, loja física, cupom fiscal, NF-e).
 RETORNE APENAS JSON VÁLIDO. NÃO use tags <think>, NÃO use markdown, NÃO adicione explicação fora do JSON.
 
 Analise a imagem e extraia somente informações visíveis. Não invente dados. Não use compras anteriores. Não preencha com exemplos.
+Se a imagem for farmácia/drogaria com total e itens (ex: Dipirona, Pague Menos), considere is_compra=true mesmo não sendo material de obra.
 
 Se a imagem não parecer um comprovante, nota, boleto, checkout, pedido, recibo ou confirmação de compra, retorne:
 {
@@ -423,11 +424,20 @@ Regras:
     const hasItems = Array.isArray(data.itens) && data.itens.length > 0;
 
     if (data.is_compra === false) {
-      return {
-        ok: false,
-        message: data.motivo_recusa || 'Imagem não parece ser uma compra ou comprovante.',
-        alertas,
-      };
+      // Permissivo para farmácia/teste: se tem dados, aceita mesmo com is_compra=false
+      if (hasFornecedor || hasTotal || hasItems) {
+        alertas.push(
+          data.motivo_recusa
+            ? `Aviso: ${data.motivo_recusa} — aceito para teste pois tem dados de compra.`
+            : 'Aviso: modelo marcou is_compra=false mas tem fornecedor/total/itens; aceito como avulso.',
+        );
+      } else {
+        return {
+          ok: false,
+          message: data.motivo_recusa || 'Imagem não parece ser uma compra ou comprovante.',
+          alertas,
+        };
+      }
     }
 
     if (!hasFornecedor && !hasTotal && !hasItems) {

@@ -824,9 +824,10 @@ async function callGeminiVisionVercel(base64, mimeType, prompt, apiKey) {
 }
 function buildPromptOcr() {
   return `
-Você é um extrator estrito de dados de compras para prestação de contas de obra.
+Você é um extrator de qualquer comprovante de compra (farmácia, mercado, obra, Mercado Livre, loja física, cupom fiscal, NF-e).
 RETORNE APENAS JSON VÁLIDO. NÃO use tags <think>, NÃO use markdown, NÃO adicione explicação fora do JSON.
 Analise a imagem e extraia somente informações visíveis. Não invente dados.
+Se a imagem for farmácia/drogaria com total e itens (ex: Dipirona, Pague Menos), considere is_compra=true mesmo não sendo material de obra.
 Se a imagem não parecer um comprovante, nota, boleto, checkout, pedido, recibo ou confirmação de compra, retorne:
 {
   "is_compra": false,
@@ -899,7 +900,13 @@ function validatePurchaseEvidenceVercel(data) {
   const hasFornecedor = !!data.fornecedor;
   const hasTotal = typeof data.resumo?.total === 'number';
   const hasItems = Array.isArray(data.itens) && data.itens.length > 0;
-  if (data.is_compra === false) return { ok: false, message: data.motivo_recusa || 'Imagem não parece ser uma compra.', alertas };
+  if (data.is_compra === false) {
+    if (hasFornecedor || hasTotal || hasItems) {
+      alertas.push(data.motivo_recusa ? `Aviso: ${data.motivo_recusa} — aceito para teste pois tem dados.` : 'Aviso: is_compra=false mas tem dados; aceito como avulso.');
+    } else {
+      return { ok: false, message: data.motivo_recusa || 'Imagem não parece ser uma compra.', alertas };
+    }
+  }
   if (!hasFornecedor && !hasTotal && !hasItems) return { ok: false, message: 'Não foi possível identificar fornecedor, total ou itens.', alertas: ['Imagem rejeitada: sem evidência de compra.'] };
   if (!hasFornecedor) alertas.push('Fornecedor não identificado com clareza. Revise antes de salvar.');
   if (!hasTotal) alertas.push('Valor total não identificado com clareza. Revise antes de salvar.');
