@@ -252,12 +252,31 @@ export function jsonResponse(res, status, body) {
 }
 
 export async function parseJson(req) {
-  const text = await req.text();
-  if (!text) return {};
-  return JSON.parse(text);
+  if (req.body && typeof req.body === 'object') {
+    return req.body;
+  }
+  if (typeof req.body === 'string' && req.body.trim()) {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return {};
+    }
+  }
+  if (typeof req.text === 'function') {
+    const text = await req.text();
+    if (!text) return {};
+    return JSON.parse(text);
+  }
+  let raw = '';
+  for await (const chunk of req) {
+    raw += chunk;
+  }
+  if (!raw.trim()) return {};
+  return JSON.parse(raw);
 }
 
 export function sendError(res, error) {
+  console.error('[API Error]', error);
   const status = error.status || 500;
   return res.status(status).json({
     message: error.message || 'Erro interno no servidor.',

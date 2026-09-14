@@ -518,8 +518,8 @@ export default function Home() {
         // Reset form
         resetForm();
       } else {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Erro ao salvar a compra.');
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || `Erro ao salvar a compra (Status ${res.status}).`);
       }
     } catch (err: any) {
       console.error(err);

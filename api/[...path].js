@@ -47,19 +47,19 @@ export default async function handler(req, res) {
     }
 
     if (path[0] === 'catalog') {
-      return handleCatalog(req, res, path.slice(1));
+      return await handleCatalog(req, res, path.slice(1));
     }
 
     if (path[0] === 'purchase') {
-      return handlePurchase(req, res, path.slice(1));
+      return await handlePurchase(req, res, path.slice(1));
     }
 
     if (path[0] === 'config') {
-      return handleConfig(req, res, path.slice(1));
+      return await handleConfig(req, res, path.slice(1));
     }
 
     if (path[0] === 'ocr' && path[1] === 'parse') {
-      return handleOcrParse(req, res);
+      return await handleOcrParse(req, res);
     }
 
     return jsonResponse(res, 404, { message: 'Rota não encontrada.' });
